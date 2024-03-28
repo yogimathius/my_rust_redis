@@ -25,15 +25,12 @@ fn handle_client(mut stream: TcpStream) {
             return;
         }
 
-        // check if buf equals "PING\r\n"
-
         let buf_str = std::str::from_utf8(&buf[0..bytes_read]).unwrap().to_lowercase();
-        // println!("+PONG\r\n");
-        // stream.write_all(b"+PONG\r\n").expect("Failed to write to client");
-
-        if buf_str == "ping\n" || buf_str == "ping\r\n" || buf_str == "ping"{
+        if buf_str.lines().filter(|line| { line.contains("ping")}).count() > 0 {
             stream.write_all(b"+PONG\r\n").expect("Failed to write to client");
             println!("+PONG\r\n");
+        } else {
+            println!("Failed to extract command.");
         }
     }
 }
