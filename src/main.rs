@@ -28,6 +28,8 @@ fn handle_client(mut stream: TcpStream) {
         // check if buf equals "PING\r\n"
 
         let buf_str = std::str::from_utf8(&buf[0..bytes_read]).unwrap();
+        println!("+PONG\r\n");
+        stream.write_all(b"+PONG\r\n").expect("Failed to write to client");
 
         if buf_str == "PING\n" || buf_str == "PING\r\n" || buf_str == "PING"{
             stream.write_all(b"+PONG\r\n").expect("Failed to write to client");
