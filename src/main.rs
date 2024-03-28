@@ -31,7 +31,7 @@ fn handle_client(mut stream: TcpStream) {
 
         if buf_str == "PING\n" || buf_str == "PING\r\n" || buf_str == "PING"{
             stream.write_all(b"+PONG\r\n").expect("Failed to write to client");
-            println!("PONG");
+            println!("+PONG\r\n");
         }
     }
 }
