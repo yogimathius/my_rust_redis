@@ -1,8 +1,5 @@
-// Uncomment this block to pass the first stage
-use std::net::TcpListener;
-use std::net::TcpStream;
-use std::io::Read;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 
 fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -15,8 +12,8 @@ fn main() {
     for stream in listener.incoming() {
         println!("Incoming connection");
         match stream {
-            Ok(_stream) => {
-                println!("+PONG\r\n");
+            Ok(stream) => {
+                handle_client(stream);
             }
             Err(e) => {
                 println!("error: {}", e);
@@ -35,5 +32,12 @@ fn handle_client(mut stream: TcpStream) {
         }
 
         stream.write_all(&buf[0..bytes_read]).expect("Failed to write to client");
+        // check if buf equals "PING\r\n"
+
+        let buf_str = std::str::from_utf8(&buf[0..bytes_read]).unwrap();
+
+        if buf_str == "+PONG\r\n" {
+            stream.write_all(b"+PONG\r\n").expect("Failed to write to client");
+        }
     }
 }
