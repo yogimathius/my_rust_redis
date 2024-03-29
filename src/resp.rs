@@ -47,6 +47,16 @@ fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
     }
 }
 
+fn parse_simple_string(buffer: BytesMut) -> Result<(Value, usize)> {
+    if let Some(line, len) = read_until_crlf(&buffer[1..]) {
+        let string = String::from_utf8(line.to_vec()).unwrap();
+
+        return Ok((Value::SimpleString(string), len + 1))
+    }
+
+    return Err(anyhow::anyhow!("Invalid string {}", buffer))
+}
+
 fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
     for i in 1..buffer.len() {
         if buffer(i - 1) == '\r' && buffer[i] =='\n' {
