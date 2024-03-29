@@ -24,10 +24,9 @@ async fn main() {
     }
 }
 
-async fn handle_client(mut stream: TcpStream) {
+async fn handle_client(stream: TcpStream) {
     let mut handler = resp::RespHandler::new(stream);
 
-    let mut buf = [0; 512];
     loop {
         let value = handler.read_value().await.unwrap();
 
