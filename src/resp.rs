@@ -30,8 +30,17 @@ impl RespHandler {
         }
     }
 
-    pub async fn read_value(&mut self) -> Result<Value> {
+    pub async fn read_value(&mut self) -> Result<Option<Value>> {
+        let bytes_read = self.stream.read(&mut self.buffer).await?;
 
+
+        if bytes_read == 0 {
+            return Ok(None)
+        }
+
+        let (v, _) = parse_message(self.buffer)?;
+
+        Ok(Some(v))
     }
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {
