@@ -1,5 +1,7 @@
 use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use anyhow::Result;
+use crate::resp::Value;
+mod resp;
 
 #[tokio::main]
 async fn main() {
@@ -23,20 +25,44 @@ async fn main() {
 }
 
 async fn handle_client(mut stream: TcpStream) {
+    let mut handler = resp::RespHandler::new(stream);
+
     let mut buf = [0; 512];
     loop {
-        let bytes_read = stream.read(&mut buf).await.unwrap();
+        let value = handler.read_value().await.unwrap();
 
-        if bytes_read == 0 {
-            return;
-        }
+        let response = if let Some(value) = value {
+           let (command, args) = extract_command(value).unwrap();
 
-        let buf_str = std::str::from_utf8(&buf[0..bytes_read]).unwrap().to_lowercase();
-        if buf_str.lines().filter(|line| { line.contains("ping")}).count() > 0 {
-            stream.write_all(b"+PONG\r\n").await.expect("Failed to write to client");
-            println!("+PONG\r\n");
+           match command.as_str() {
+            "ping" => Value::SimpleString("PONG".to_string()),
+            "echo" => args.first().unwrap().clone(),
+            _ => panic!("Cannot handle comman {}", command),
+           }
         } else {
-            println!("Failed to extract command.");
-        }
+            break;
+        };
+
+        handler.write_value(response).await.unwrap();
+    }
+}
+
+fn extract_command(value: Value) -> Result<(String, Vec<Value>)>{
+    match value {
+        Value::Array(a) => {
+            Ok((
+                unpack_bulk_str(a.first().unwrap().clone())?,
+                a.into_iter().skip(1).collect(),
+            ))
+        },
+        _ => Err(anyhow::anyhow!("Unexpected command format")),
+    }
+}
+
+fn unpack_bulk_str(value: Value) ->  Result<String>{
+    match value {
+        Value::BulkString(s) => Ok(s),
+        _ => Err(anyhow::anyhow!("Expected bulk string")),
+
     }
 }
