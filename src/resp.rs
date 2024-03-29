@@ -2,9 +2,19 @@ use tokio::net::TcpStream;
 use bytes::{BytesMut, BufMut, Bytes, Buf};
 
 pub enum Value {
-    Error(String),
+    SimpleString(String),
     BulkString(String),
     Array(Vec<Value>)
+}
+
+impl Value {
+    pub fn serialize(self) -> String {
+        match self {
+            Value::SimpleString(s) => format!("+{}\r\n", s),
+            Value::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
+            _ => panic!("Not implemented")
+        }
+    }
 }
 pub struct RespHandler {
     stream: TcpStream,
