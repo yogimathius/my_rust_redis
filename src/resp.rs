@@ -2,7 +2,9 @@ use tokio::net::TcpStream;
 use bytes::{BytesMut, BufMut, Bytes, Buf};
 
 pub enum Value {
-
+    Error(String),
+    BulkString(String),
+    Array(Vec<Value>)
 }
 pub struct RespHandler {
     stream: TcpStream,
