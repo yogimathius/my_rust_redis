@@ -38,7 +38,16 @@ impl RespHandler {
     }
 }
 
-fn read_until_crlf(buffer: &[u8]) -> Option(&[u8], usize) {
+fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
+    match buffer[0] as char {
+        '+' => parse_simple_string(buffer),
+        '*' => parse_array(buffer),
+        '$' => parse_bulk_string(buffer),
+        _ => Err(anyhow::anyhow!("Unknown value type {}", buffer))
+    }
+}
+
+fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
     for i in 1..buffer.len() {
         if buffer(i - 1) == '\r' && buffer[i] =='\n' {
             return Some((&buffer[0..(i-1)], i +1))
