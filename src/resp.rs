@@ -38,13 +38,15 @@ impl RespHandler {
             return Ok(None)
         }
 
-        let (v, _) = parse_message(self.buffer)?;
+        let (v, _) = parse_message(self.buffer.split())?;
 
         Ok(Some(v))
     }
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {
+        self.stream.write(value.serialize().as_bytes()).await?;
 
+        Ok(())
     }
 }
 
