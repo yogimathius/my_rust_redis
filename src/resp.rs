@@ -1,5 +1,6 @@
 use tokio::net::TcpStream;
 use bytes::{BytesMut, BufMut, Bytes, Buf};
+use anyhow::Result;
 
 pub enum Value {
     SimpleString(String),
@@ -57,6 +58,16 @@ fn parse_simple_string(buffer: BytesMut) -> Result<(Value, usize)> {
     return Err(anyhow::anyhow!("Invalid string {}", buffer))
 }
 
+fn parse_array(buffer: BytesMut) -> Result<(Value, usize)> {
+    let (array_length, bytes_consumed) = if let Some(line, len) = read_until_crlf(&buffer[1..]) {
+        let array_length = parse_int(line)?;
+
+        (array_length, len + 1)
+    } else {
+        return  Err(anyhow::anyhow!("Invalid array format {}", buffer))
+    };
+}
+
 fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
     for i in 1..buffer.len() {
         if buffer(i - 1) == '\r' && buffer[i] =='\n' {
@@ -65,4 +76,8 @@ fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
     }
 
     return None
+}
+
+fn parse_int(buffer: &[u8]) -> Result<i64> {
+    String::from_utf8(buffer.to_vec())?.parse::<i64>()
 }
