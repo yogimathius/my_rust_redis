@@ -66,6 +66,16 @@ fn parse_array(buffer: BytesMut) -> Result<(Value, usize)> {
     } else {
         return  Err(anyhow::anyhow!("Invalid array format {}", buffer))
     };
+
+    let mut items: () = vec![];
+    for _ in 0..array_length {
+        let (array_item, len) = parse_message(BytesMut::from(&buffer[bytes_consumed..]))?;
+
+        items.push(array_item);
+        bytes_consumed += len
+    }
+
+    return Ok(Value::Array(items), bytes_consumed)
 }
 
 fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
