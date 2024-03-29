@@ -78,6 +78,21 @@ fn parse_array(buffer: BytesMut) -> Result<(Value, usize)> {
     return Ok(Value::Array(items), bytes_consumed)
 }
 
+fn parse_bulk_string(buffer: BytesMut) -> Result<(Value, usize)> {
+    let (bulk_str_len, bytes_consumed) = if let Some(line, len) = read_until_crlf(&buffer[1..]) {
+        let bulk_str_len = parse_int(line)?;
+
+        (bulk_str_len, len + 1)
+    } else {
+        return  Err(anyhow::anyhow!("Invalid array format {}", buffer))
+    };
+
+    let end_of_bulk_str = bytes_consumed + bulk_str_len as usize;
+    let total_parsed = end_of_bulk_str + 2;
+
+    Ok((Value::BulkString(String::from_utf8(buffer[bytes_consumed..end_of_bulk_str].to_vec())?), total_parsed))
+}
+
 fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
     for i in 1..buffer.len() {
         if buffer(i - 1) == '\r' && buffer[i] =='\n' {
