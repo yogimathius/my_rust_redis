@@ -3,7 +3,7 @@ use bytes::BytesMut;
 use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     SimpleString(String),
     BulkString(String),
@@ -16,6 +16,7 @@ impl Value {
         match self {
             Value::SimpleString(s) => format!("+{}\r\n", s),
             Value::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
+            Value::NullBulkString => format!("$-1\r\n"),
             _ => panic!("Not implemented")
         }
     }
