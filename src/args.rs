@@ -22,7 +22,6 @@ impl Args {
             Some(flag) => Err(anyhow::anyhow!("Unknown flag \"{flag}\"!")),
             None => Ok(defaults::PORT),
         }?;
-        Ok(Args { port });
-1
+        Ok(Args { port })
     }
 }

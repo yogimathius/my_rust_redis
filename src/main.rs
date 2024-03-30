@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use resp::Value;
 use std::sync::Mutex;
 mod resp;
+mod args;
 
 pub struct RedisItem {
     value: String,
@@ -17,8 +18,9 @@ type Storage = std::sync::Arc<Mutex<HashMap<String, RedisItem>>>;
 #[tokio::main]
 async fn main() {
     let port = 6379;
+    let args = args::Args::parse();
 
-    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let listener = TcpListener::bind(("127.0.0.1", args.unwrap().port)).await.unwrap();
     println!("Listening on Port {}", port);
 
     let storage: Storage = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
