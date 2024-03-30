@@ -7,7 +7,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 pub enum Value {
     SimpleString(String),
     BulkString(String),
-    Array(Vec<Value>)
+    Array(Vec<Value>),
+    NullBulkString
 }
 
 impl Value {

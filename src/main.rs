@@ -1,20 +1,30 @@
 use tokio::net::{TcpListener, TcpStream};
 use anyhow::Result;
-use crate::resp::Value;
+use std::collections::HashMap;
+use resp::Value;
+use std::sync::Mutex;
 mod resp;
+
+type Storage = std::sync::Arc<Mutex<HashMap<String, String>>>;
 
 #[tokio::main]
 async fn main() {
+    let port = 6379;
+
     let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
-    
+    println!("Listening on Port {}", port);
+
+    let storage: Storage = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+
     loop {
         let stream = listener.accept().await;
+        let storage: Storage = storage.clone();
 
         match stream {
             Ok((stream, _)) => {
 
                 tokio::spawn(async move {
-                    handle_client(stream).await;
+                    handle_client(stream, storage).await;
                 });
             }
             Err(e) => {
@@ -24,7 +34,7 @@ async fn main() {
     }
 }
 
-async fn handle_client(stream: TcpStream) {
+async fn handle_client(stream: TcpStream, storage: Storage) {
     let mut handler = resp::RespHandler::new(stream);
 
     loop {
@@ -36,7 +46,23 @@ async fn handle_client(stream: TcpStream) {
            match command.as_str() {
             "ping" => Value::SimpleString("PONG".to_string()),
             "echo" => args.first().unwrap().clone(),
+            "get" => {
+                let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+                let storage = storage.lock().unwrap();
+                match storage.get(&key) {
+                    Some(value) => Value::BulkString(value.clone()),
+                    None => Value::NullBulkString,
+                }
+            }
+            "set" => {
+                let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+                let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
+                let mut storage = storage.lock().unwrap();
+                storage.insert(key, value);
+                Value::SimpleString("OK".to_string())
+            },
             _ => panic!("Cannot handle comman {}", command),
+
            }
         } else {
             break;
