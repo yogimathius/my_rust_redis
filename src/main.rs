@@ -56,48 +56,7 @@ async fn handle_client(stream: TcpStream, storage: Storage) {
             "ping" => Value::SimpleString("PONG".to_string()),
             "echo" => args.first().unwrap().clone(),
             "get" => handle_get(args, storage.clone()),
-            "set" => {
-                let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-                let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
-                let mut storage = storage.lock().unwrap();
-                    // add Expiration
-                    let expiration_time = match args.get(2) {
-                        None => None,
-                        Some(Value::BulkString(sub_command)) => {
-                            println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
-                            if sub_command != "px" {
-                                panic!("Invalid expiration time")
-                            }
-                            match args.get(3) {
-                                None => None,
-                                Some(Value::BulkString(time)) => {
-                                    // add expiration
-                                    // parse time to i64
-                                    let time = time.parse::<i64>().unwrap();
-                                    Some(time)
-                                }
-                                _ => panic!("Invalid expiration time"),
-                            }
-                        }
-                        _ => panic!("Invalid expiration time"),
-                    };
-                    let redis_item = if let Some(exp_time) = expiration_time {
-                        RedisItem {
-                            value,
-                            created_at: Instant::now(),
-                            expiration: Some(exp_time),
-                        }
-                    } else {
-                        RedisItem {
-                            value,
-                            created_at: Instant::now(),
-                            expiration: None,
-                        }
-                    };
-                    storage.insert(key, redis_item);
-
-                Value::SimpleString("OK".to_string())
-            },
+            "set" => handle_set(args, storage.clone()),
             _ => panic!("Cannot handle command {}", command),
 
            }
@@ -150,4 +109,47 @@ fn handle_get(args: Vec<Value>, storage: Storage) -> Value {
         },
         None => Value::NullBulkString,
     }
+}
+
+fn handle_set(args: Vec<Value>, storage: Storage) -> Value {
+    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+    let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
+    let mut storage = storage.lock().unwrap();
+        // add Expiration
+        let expiration_time = match args.get(2) {
+            None => None,
+            Some(Value::BulkString(sub_command)) => {
+                println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
+                if sub_command != "px" {
+                    panic!("Invalid expiration time")
+                }
+                match args.get(3) {
+                    None => None,
+                    Some(Value::BulkString(time)) => {
+                        // add expiration
+                        // parse time to i64
+                        let time = time.parse::<i64>().unwrap();
+                        Some(time)
+                    }
+                    _ => panic!("Invalid expiration time"),
+                }
+            }
+            _ => panic!("Invalid expiration time"),
+        };
+        let redis_item = if let Some(exp_time) = expiration_time {
+            RedisItem {
+                value,
+                created_at: Instant::now(),
+                expiration: Some(exp_time),
+            }
+        } else {
+            RedisItem {
+                value,
+                created_at: Instant::now(),
+                expiration: None,
+            }
+        };
+        storage.insert(key, redis_item);
+
+    Value::SimpleString("OK".to_string())
 }
