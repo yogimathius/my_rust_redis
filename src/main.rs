@@ -57,6 +57,7 @@ async fn handle_client(stream: TcpStream, storage: Storage) {
             "echo" => args.first().unwrap().clone(),
             "get" => handle_get(args, storage.clone()),
             "set" => handle_set(args, storage.clone()),
+            "INFO" => Value::BulkString("role:master".to_string()),
             _ => panic!("Cannot handle command {}", command),
 
            }
