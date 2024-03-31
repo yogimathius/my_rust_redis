@@ -15,12 +15,26 @@ pub struct RedisItem {
 
 type Storage = std::sync::Arc<Mutex<HashMap<String, RedisItem>>>;
 
+// mod replication {
+//     pub(super) const MASTER: &[u8] = b"$25\r\n# Replication\nrole:master\r\n";
+//     pub(super) const SLAVE: &[u8] = b"$24\r\n# Replication\nrole:slave\r\n";
+// }
+
+#[derive(Debug, Clone, Copy)]
+enum Role {
+    Master,
+    Slave {
+        host: ::std::net::Ipv4Addr,
+        port: u16,
+    },
+}
+
 #[tokio::main]
 async fn main() {
     let port = 6379;
-    let args = args::Args::parse();
+    let args::Args { port, role } = args::Args::parse().unwrap();
 
-    let listener = TcpListener::bind(("127.0.0.1", args.unwrap().port)).await.unwrap();
+    let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
     println!("Listening on Port {}", port);
 
     let storage: Storage = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
@@ -33,7 +47,7 @@ async fn main() {
             Ok((stream, _)) => {
 
                 tokio::spawn(async move {
-                    handle_client(stream, storage).await;
+                    handle_client(stream, storage, role).await;
                 });
             }
             Err(e) => {
@@ -43,7 +57,7 @@ async fn main() {
     }
 }
 
-async fn handle_client(stream: TcpStream, storage: Storage) {
+async fn handle_client(stream: TcpStream, storage: Storage, role: Role) {
     let mut handler = resp::RespHandler::new(stream);
 
     loop {
@@ -57,7 +71,7 @@ async fn handle_client(stream: TcpStream, storage: Storage) {
             "echo" => args.first().unwrap().clone(),
             "get" => handle_get(args, storage.clone()),
             "set" => handle_set(args, storage.clone()),
-            "INFO" => Value::BulkString("role:master".to_string()),
+            "INFO" => handle_info(role),
             _ => panic!("Cannot handle command {}", command),
 
            }
@@ -153,4 +167,12 @@ fn handle_set(args: Vec<Value>, storage: Storage) -> Value {
         storage.insert(key, redis_item);
 
     Value::SimpleString("OK".to_string())
+}
+
+fn handle_info(role: Role) -> Value {
+    print!("args = {:?}", role);
+    if let Role::Master = role {
+        return Value::BulkString("role:master".to_string());
+    }
+    Value::BulkString("role:slave".to_string())
 }
