@@ -55,28 +55,7 @@ async fn handle_client(stream: TcpStream, storage: Storage) {
            match command.as_str() {
             "ping" => Value::SimpleString("PONG".to_string()),
             "echo" => args.first().unwrap().clone(),
-            "get" => {
-                let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-                let storage = storage.lock().unwrap();
-                match storage.get(&key) {
-                    Some(value) => {
-                        let response = if let Some(expiration) = value.expiration {
-                            let now = Instant::now();
-                            if now.duration_since(value.created_at).as_millis()
-                                > expiration as u128
-                            {
-                                Value::NullBulkString
-                            } else {
-                                Value::BulkString(value.value.clone())
-                            }
-                        } else {
-                            Value::BulkString(value.value.clone())
-                        };
-                        response
-                    },
-                    None => Value::NullBulkString,
-                }
-            }
+            "get" => handle_get(args, storage.clone()),
             "set" => {
                 let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
                 let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
@@ -119,7 +98,7 @@ async fn handle_client(stream: TcpStream, storage: Storage) {
 
                 Value::SimpleString("OK".to_string())
             },
-            _ => panic!("Cannot handle comman {}", command),
+            _ => panic!("Cannot handle command {}", command),
 
            }
         } else {
@@ -147,5 +126,28 @@ fn unpack_bulk_str(value: Value) ->  Result<String>{
         Value::BulkString(s) => Ok(s),
         _ => Err(anyhow::anyhow!("Expected bulk string")),
 
+    }
+}
+
+fn handle_get(args: Vec<Value>, storage: Storage) -> Value {
+    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+    let storage = storage.lock().unwrap();
+    match storage.get(&key) {
+        Some(value) => {
+            let response = if let Some(expiration) = value.expiration {
+                let now = Instant::now();
+                if now.duration_since(value.created_at).as_millis()
+                    > expiration as u128
+                {
+                    Value::NullBulkString
+                } else {
+                    Value::BulkString(value.value.clone())
+                }
+            } else {
+                Value::BulkString(value.value.clone())
+            };
+            response
+        },
+        None => Value::NullBulkString,
     }
 }
