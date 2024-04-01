@@ -114,8 +114,9 @@ impl Server {
         match &self.role {
             Role::Master => None,
             Role::Slave { host: _, port: _ } => {
-                let msg = Value::BulkString(String::from("ping"));
-                Some(msg)
+                let msg = vec![Value::BulkString(String::from("ping"))];
+                let payload = Value::Array(msg);
+                Some(payload)
             }
         }
     }
