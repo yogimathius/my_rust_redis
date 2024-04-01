@@ -107,9 +107,9 @@ impl Server {
         }
     }
 
-    pub fn info(&self) -> String {
+    pub fn info(&self) -> Value {
         let mut info = format!("role:{}", self.role.to_string());
-        match self.role {
+        match &self.role {
             Role::Master => {
                 info.push_str(&format!("nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"));
                 info.push_str("master_repl_offset:0");
@@ -118,13 +118,13 @@ impl Server {
                 info.push_str(&format!("nmaster_host:{}nmaster_port:{}", host, port));
             }
         };
-        info
+        Value::BulkString(info)
     }
 
     pub fn ping(&self) -> Option<Value> {
-        match self.role {
+        match &self.role {
             Role::Master => None,
-            Role::Slave { host, port } => {
+            Role::Slave { host: _, port: _ } => {
                 let msg = Value::BulkString(String::from("ping"));
                 Some(msg)
             }
