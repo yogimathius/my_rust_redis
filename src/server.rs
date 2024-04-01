@@ -75,7 +75,7 @@ impl Server {
 
     pub fn get(&self, args: Vec<Value>) -> Value {
         let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-        let mut cache = self.cache.lock().unwrap();
+        let cache = self.cache.lock().unwrap();
         match cache.get(&key) {
             Some(value) => {
                 let response = if let Some(expiration) = value.expiration {
@@ -126,7 +126,7 @@ impl ToString for Role {
     fn to_string(&self) -> String {
         match self {
             Self::Master => String::from("master"),
-            Self::Slave { host, port } => String::from("slave"),
+            Self::Slave { host: _, port: _ } => String::from("slave"),
         }
     }
 }
