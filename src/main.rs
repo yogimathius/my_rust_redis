@@ -31,7 +31,7 @@ enum Role {
 
 #[tokio::main]
 async fn main() {
-    let port = 6379;
+    // let port = 6379;
     let args::Args { port, role } = args::Args::parse().unwrap();
 
     let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
@@ -172,7 +172,7 @@ fn handle_set(args: Vec<Value>, storage: Storage) -> Value {
 fn handle_info(role: Role) -> Value {
     print!("args = {:?}", role);
     if let Role::Master = role {
-        return Value::BulkString("role:master".to_string());
+        return Value::BulkString("role:master\nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb\nmaster_repl_offset:0".to_string());
     }
     Value::BulkString("role:slave".to_string())
 }
