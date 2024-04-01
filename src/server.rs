@@ -11,17 +11,6 @@ pub enum Role {
 }
 
 #[derive(Debug, PartialEq)]
-struct Entry {
-    value: String,
-    expiry: Option<Instant>,
-}
-impl Entry {
-    fn new(value: String, expiry: Option<Instant>) -> Self {
-        Self { value, expiry }
-    }
-}
-
-#[derive(Debug, PartialEq)]
 pub struct RedisItem {
     value: String,
     created_at: Instant,
