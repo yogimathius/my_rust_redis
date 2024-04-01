@@ -4,6 +4,12 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use anyhow::Result;
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Role {
+    Master,
+    Slave { host: String, port: u16 }
+}
+
 #[derive(Debug, PartialEq)]
 struct Entry {
     value: String,
@@ -15,6 +21,7 @@ impl Entry {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct RedisItem {
     value: String,
     created_at: Instant,
@@ -107,7 +114,9 @@ impl Server {
                 info.push_str(&format!("nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"));
                 info.push_str("master_repl_offset:0");
             }
-            Role::Slave => {}
+            Role::Slave { host, port } => {
+                info.push_str(&format!("nmaster_host:{}nmaster_port:{}", host, port));
+            }
         };
         info
     }
@@ -115,7 +124,7 @@ impl Server {
     pub fn ping(&self) -> Option<Value> {
         match self.role {
             Role::Master => None,
-            Role::Slave => {
+            Role::Slave { host, port } => {
                 let msg = Value::BulkString(String::from("ping"));
                 Some(msg)
             }
@@ -123,16 +132,12 @@ impl Server {
     }
 }
 
-#[derive(Clone)]
-pub enum Role {
-    Master,
-    Slave,
-}
+
 impl ToString for Role {
     fn to_string(&self) -> String {
         match self {
             Self::Master => String::from("master"),
-            Self::Slave => String::from("slave"),
+            Self::Slave { host, port } => String::from("slave"),
         }
     }
 }
