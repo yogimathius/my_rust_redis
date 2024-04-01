@@ -1,53 +1,57 @@
-use tokio::net::{TcpListener, TcpStream};
-use tokio::time::Instant;
-use anyhow::Result;
-use std::collections::HashMap;
-use resp::Value;
-use std::sync::Mutex;
 mod resp;
-mod args;
+mod server;
+use resp::Value;
+use clap::Parser as ClapParser;
 
-pub struct RedisItem {
-    value: String,
-    created_at: Instant,
-    expiration: Option<i64>,
-}
+use tokio::io::AsyncWriteExt;
+use tokio::net::{TcpListener, TcpStream};
+use anyhow::Result;
+use server::{Role, Server};
 
-type Storage = std::sync::Arc<Mutex<HashMap<String, RedisItem>>>;
 
-// mod replication {
-//     pub(super) const MASTER: &[u8] = b"$25\r\n# Replication\nrole:master\r\n";
-//     pub(super) const SLAVE: &[u8] = b"$24\r\n# Replication\nrole:slave\r\n";
-// }
-
-#[derive(Debug, Clone, Copy)]
-enum Role {
-    Master,
-    Slave {
-        host: ::std::net::Ipv4Addr,
-        port: u16,
-    },
+#[derive(ClapParser, Debug)]
+struct Args {
+    #[arg(short, long, default_value_t = 6379)]
+    port: u16,
+    #[arg(short, long, value_delimiter = ' ', num_args = 2)]
+    replicaof: Option<Vec<String>>,
 }
 
 #[tokio::main]
 async fn main() {
     // let port = 6379;
-    let args::Args { port, role } = args::Args::parse().unwrap();
+    let args = Args::parse();
 
-    let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
-    println!("Listening on Port {}", port);
+    let listener = TcpListener::bind(("127.0.0.1", args.port))
+        .await
+        .unwrap();
 
-    let storage: Storage = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+    println!("Listening on Port {}", args.port);
+
+    let server = Server::new(match args.replicaof {
+        Some(_) => Role::Slave { host: "localhost".to_string(), port: 6379 },
+        None => Role::Master,
+    });
+    match args.replicaof {
+        Some(vec) => {
+            let mut iter = vec.into_iter();
+            let addr = iter.next().unwrap();
+            let port = iter.next().unwrap();
+            let stream = TcpStream::connect(format!("{addr}:{port}")).await.unwrap();
+            send_handhshake(stream, &server).await.unwrap();
+        }
+        None => {}
+    }
 
     loop {
         let stream = listener.accept().await;
-        let storage: Storage = storage.clone();
+        let server = server.clone();
 
         match stream {
             Ok((stream, _)) => {
 
                 tokio::spawn(async move {
-                    handle_client(stream, storage, role).await;
+                    handle_client(stream, server).await;
                 });
             }
             Err(e) => {
@@ -57,7 +61,13 @@ async fn main() {
     }
 }
 
-async fn handle_client(stream: TcpStream, storage: Storage, role: Role) {
+async fn send_handhshake(mut stream: TcpStream, server: &Server) -> Result<()> {
+    let msg = server.ping().unwrap();
+    stream.write_all(msg.serialize().as_bytes()).await?;
+    Ok(())
+}
+
+async fn handle_client(stream: TcpStream, mut server: Server) {
     let mut handler = resp::RespHandler::new(stream);
 
     loop {
@@ -69,9 +79,9 @@ async fn handle_client(stream: TcpStream, storage: Storage, role: Role) {
            match command.as_str() {
             "ping" => Value::SimpleString("PONG".to_string()),
             "echo" => args.first().unwrap().clone(),
-            "get" => handle_get(args, storage.clone()),
-            "set" => handle_set(args, storage.clone()),
-            "INFO" => handle_info(role),
+            "get" => server.get(args),
+            "set" => server.set(args),
+            "INFO" => server.info(),
             _ => panic!("Cannot handle command {}", command),
 
            }
@@ -103,76 +113,76 @@ fn unpack_bulk_str(value: Value) ->  Result<String>{
     }
 }
 
-fn handle_get(args: Vec<Value>, storage: Storage) -> Value {
-    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-    let storage = storage.lock().unwrap();
-    match storage.get(&key) {
-        Some(value) => {
-            let response = if let Some(expiration) = value.expiration {
-                let now = Instant::now();
-                if now.duration_since(value.created_at).as_millis()
-                    > expiration as u128
-                {
-                    Value::NullBulkString
-                } else {
-                    Value::BulkString(value.value.clone())
-                }
-            } else {
-                Value::BulkString(value.value.clone())
-            };
-            response
-        },
-        None => Value::NullBulkString,
-    }
-}
+// fn handle_get(args: Vec<Value>, storage: Storage) -> Value {
+//     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+//     let storage = storage.lock().unwrap();
+//     match storage.get(&key) {
+//         Some(value) => {
+//             let response = if let Some(expiration) = value.expiration {
+//                 let now = Instant::now();
+//                 if now.duration_since(value.created_at).as_millis()
+//                     > expiration as u128
+//                 {
+//                     Value::NullBulkString
+//                 } else {
+//                     Value::BulkString(value.value.clone())
+//                 }
+//             } else {
+//                 Value::BulkString(value.value.clone())
+//             };
+//             response
+//         },
+//         None => Value::NullBulkString,
+//     }
+// }
 
-fn handle_set(args: Vec<Value>, storage: Storage) -> Value {
-    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-    let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
-    let mut storage = storage.lock().unwrap();
-        // add Expiration
-        let expiration_time = match args.get(2) {
-            None => None,
-            Some(Value::BulkString(sub_command)) => {
-                println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
-                if sub_command != "px" {
-                    panic!("Invalid expiration time")
-                }
-                match args.get(3) {
-                    None => None,
-                    Some(Value::BulkString(time)) => {
-                        // add expiration
-                        // parse time to i64
-                        let time = time.parse::<i64>().unwrap();
-                        Some(time)
-                    }
-                    _ => panic!("Invalid expiration time"),
-                }
-            }
-            _ => panic!("Invalid expiration time"),
-        };
-        let redis_item = if let Some(exp_time) = expiration_time {
-            RedisItem {
-                value,
-                created_at: Instant::now(),
-                expiration: Some(exp_time),
-            }
-        } else {
-            RedisItem {
-                value,
-                created_at: Instant::now(),
-                expiration: None,
-            }
-        };
-        storage.insert(key, redis_item);
+// fn handle_set(args: Vec<Value>, storage: Storage) -> Value {
+//     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+//     let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
+//     let mut storage = storage.lock().unwrap();
+//         // add Expiration
+//         let expiration_time = match args.get(2) {
+//             None => None,
+//             Some(Value::BulkString(sub_command)) => {
+//                 println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
+//                 if sub_command != "px" {
+//                     panic!("Invalid expiration time")
+//                 }
+//                 match args.get(3) {
+//                     None => None,
+//                     Some(Value::BulkString(time)) => {
+//                         // add expiration
+//                         // parse time to i64
+//                         let time = time.parse::<i64>().unwrap();
+//                         Some(time)
+//                     }
+//                     _ => panic!("Invalid expiration time"),
+//                 }
+//             }
+//             _ => panic!("Invalid expiration time"),
+//         };
+//         let redis_item = if let Some(exp_time) = expiration_time {
+//             RedisItem {
+//                 value,
+//                 created_at: Instant::now(),
+//                 expiration: Some(exp_time),
+//             }
+//         } else {
+//             RedisItem {
+//                 value,
+//                 created_at: Instant::now(),
+//                 expiration: None,
+//             }
+//         };
+//         storage.insert(key, redis_item);
 
-    Value::SimpleString("OK".to_string())
-}
+//     Value::SimpleString("OK".to_string())
+// }
 
-fn handle_info(role: Role) -> Value {
-    print!("args = {:?}", role);
-    if let Role::Master = role {
-        return Value::BulkString("role:master\nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb\nmaster_repl_offset:0".to_string());
-    }
-    Value::BulkString("role:slave".to_string())
-}
+// fn handle_info(role: Role) -> Value {
+//     print!("args = {:?}", role);
+//     if let Role::Master = role {
+//         return Value::BulkString("role:master\nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb\nmaster_repl_offset:0".to_string());
+//     }
+//     Value::BulkString("role:slave".to_string())
+// }
