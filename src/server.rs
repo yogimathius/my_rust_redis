@@ -1,13 +1,13 @@
 use crate::resp::Value;
+use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use anyhow::Result;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Role {
     Master,
-    Slave { host: String, port: u16 }
+    Slave { host: String, port: u16 },
 }
 
 #[derive(Debug, PartialEq)]
@@ -34,42 +34,42 @@ impl Server {
         let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
         let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
         let mut cache = self.cache.lock().unwrap();
-            // add Expiration
-            let expiration_time = match args.get(2) {
-                None => None,
-                Some(Value::BulkString(sub_command)) => {
-                    println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
-                    if sub_command != "px" {
-                        panic!("Invalid expiration time")
+        // add Expiration
+        let expiration_time = match args.get(2) {
+            None => None,
+            Some(Value::BulkString(sub_command)) => {
+                println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
+                if sub_command != "px" {
+                    panic!("Invalid expiration time")
+                }
+                match args.get(3) {
+                    None => None,
+                    Some(Value::BulkString(time)) => {
+                        // add expiration
+                        // parse time to i64
+                        let time = time.parse::<i64>().unwrap();
+                        Some(time)
                     }
-                    match args.get(3) {
-                        None => None,
-                        Some(Value::BulkString(time)) => {
-                            // add expiration
-                            // parse time to i64
-                            let time = time.parse::<i64>().unwrap();
-                            Some(time)
-                        }
-                        _ => panic!("Invalid expiration time"),
-                    }
+                    _ => panic!("Invalid expiration time"),
                 }
-                _ => panic!("Invalid expiration time"),
-            };
-            let redis_item = if let Some(exp_time) = expiration_time {
-                RedisItem {
-                    value,
-                    created_at: Instant::now(),
-                    expiration: Some(exp_time),
-                }
-            } else {
-                RedisItem {
-                    value,
-                    created_at: Instant::now(),
-                    expiration: None,
-                }
-            };
-            cache.insert(key, redis_item);
-    
+            }
+            _ => panic!("Invalid expiration time"),
+        };
+        let redis_item = if let Some(exp_time) = expiration_time {
+            RedisItem {
+                value,
+                created_at: Instant::now(),
+                expiration: Some(exp_time),
+            }
+        } else {
+            RedisItem {
+                value,
+                created_at: Instant::now(),
+                expiration: None,
+            }
+        };
+        cache.insert(key, redis_item);
+
         Value::SimpleString("OK".to_string())
     }
 
@@ -80,9 +80,7 @@ impl Server {
             Some(value) => {
                 let response = if let Some(expiration) = value.expiration {
                     let now = Instant::now();
-                    if now.duration_since(value.created_at).as_millis()
-                        > expiration as u128
-                    {
+                    if now.duration_since(value.created_at).as_millis() > expiration as u128 {
                         Value::NullBulkString
                     } else {
                         Value::BulkString(value.value.clone())
@@ -91,7 +89,7 @@ impl Server {
                     Value::BulkString(value.value.clone())
                 };
                 response
-            },
+            }
             None => Value::NullBulkString,
         }
     }
@@ -100,7 +98,9 @@ impl Server {
         let mut info = format!("role:{}", self.role.to_string());
         match &self.role {
             Role::Master => {
-                info.push_str(&format!("nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"));
+                info.push_str(&format!(
+                    "nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+                ));
                 info.push_str("master_repl_offset:0");
             }
             Role::Slave { host, port } => {
@@ -120,8 +120,23 @@ impl Server {
             }
         }
     }
-}
 
+    pub fn replconf(&self) -> Option<Value> {
+        match &self.role {
+            Role::Master => None,
+            Role::Slave { host, port } => {
+                let msg = vec![
+                    Value::BulkString(String::from("REPLCONF")),
+                    Value::BulkString(String::from("listening-port")),
+                    Value::BulkString(String::from("6380")),
+                    Value::BulkString(String::from("0")),
+                ];
+                let payload = Value::Array(msg);
+                Some(payload)
+            }
+        }
+    }
+}
 
 impl ToString for Role {
     fn to_string(&self) -> String {
@@ -132,10 +147,9 @@ impl ToString for Role {
     }
 }
 
-fn unpack_bulk_str(value: Value) ->  Result<String>{
+fn unpack_bulk_str(value: Value) -> Result<String> {
     match value {
         Value::BulkString(s) => Ok(s),
         _ => Err(anyhow::anyhow!("Expected bulk string")),
-
     }
 }
