@@ -1,5 +1,7 @@
+mod replica_client;
 mod resp;
 mod server;
+
 use clap::Parser as ClapParser;
 use resp::Value;
 
@@ -28,19 +30,21 @@ async fn main() {
             let mut iter = vec.into_iter();
             let addr = iter.next().unwrap();
             let port = iter.next().unwrap();
-            Role::Slave {
+            Role::Replica {
                 host: addr,
                 port: port.parse::<u16>().unwrap(),
             }
         }
-        None => Role::Master,
+        None => Role::Main,
     });
+
     match args.replicaof {
         Some(vec) => {
             let mut iter = vec.into_iter();
             let addr = iter.next().unwrap();
             let port = iter.next().unwrap();
             let mut stream = TcpStream::connect(format!("{addr}:{port}")).await.unwrap();
+
             send_handshake(&mut stream, &server).await.unwrap();
 
             let mut buffer = [0; 1024];
@@ -52,10 +56,8 @@ async fn main() {
                     } else {
                         let response = String::from_utf8_lossy(&buffer[..n]);
                         let response_str = response.as_ref();
-                        println!("Response: {}", response.trim() == "+PONG");
                         match response_str.trim() {
                             "+PONG" => {
-                                println!("Replication established");
                                 send_handshake_two(stream, &server).await.unwrap();
                             }
                             _ => {
@@ -92,6 +94,15 @@ async fn main() {
 async fn send_handshake(stream: &mut TcpStream, server: &Server) -> Result<()> {
     let msg = server.ping().unwrap();
     stream.write_all(msg.serialize().as_bytes()).await?;
+
+    // Wait for PONG response
+    let mut buffer = [0; 512];
+    let n = stream.read(&mut buffer).await?;
+    let response = String::from_utf8_lossy(&buffer[..n]);
+    if response.trim() != "PONG" {
+        return Err(anyhow::anyhow!("Expected PONG, got {}", response));
+    }
+
     Ok(())
 }
 
@@ -116,6 +127,7 @@ async fn handle_client(stream: TcpStream, mut server: Server) {
                 "get" => server.get(args),
                 "set" => server.set(args),
                 "INFO" => server.info(),
+                "REPLCONF" => Value::SimpleString("OK".to_string()),
                 _ => panic!("Cannot handle command {}", command),
             }
         } else {

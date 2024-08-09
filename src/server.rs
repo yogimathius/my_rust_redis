@@ -6,8 +6,8 @@ use std::time::Instant;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Role {
-    Master,
-    Slave { host: String, port: u16 },
+    Main,
+    Replica { host: String, port: u16 },
 }
 
 #[derive(Debug, PartialEq)]
@@ -97,13 +97,13 @@ impl Server {
     pub fn info(&self) -> Value {
         let mut info = format!("role:{}", self.role.to_string());
         match &self.role {
-            Role::Master => {
+            Role::Main => {
                 info.push_str(&format!(
                     "nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
                 ));
                 info.push_str("master_repl_offset:0");
             }
-            Role::Slave { host, port } => {
+            Role::Replica { host, port } => {
                 info.push_str(&format!("nmaster_host:{}nmaster_port:{}", host, port));
             }
         };
@@ -112,8 +112,8 @@ impl Server {
 
     pub fn ping(&self) -> Option<Value> {
         match &self.role {
-            Role::Master => None,
-            Role::Slave { host: _, port: _ } => {
+            Role::Main => None,
+            Role::Replica { host: _, port: _ } => {
                 let msg = vec![Value::BulkString(String::from("ping"))];
                 let payload = Value::Array(msg);
                 Some(payload)
@@ -123,13 +123,12 @@ impl Server {
 
     pub fn replconf(&self) -> Option<Value> {
         match &self.role {
-            Role::Master => None,
-            Role::Slave { host, port } => {
+            Role::Main => None,
+            Role::Replica { host: _, port: _ } => {
                 let msg = vec![
                     Value::BulkString(String::from("REPLCONF")),
                     Value::BulkString(String::from("listening-port")),
                     Value::BulkString(String::from("6380")),
-                    Value::BulkString(String::from("0")),
                 ];
                 let payload = Value::Array(msg);
                 Some(payload)
@@ -141,8 +140,8 @@ impl Server {
 impl ToString for Role {
     fn to_string(&self) -> String {
         match self {
-            Self::Master => String::from("master"),
-            Self::Slave { host: _, port: _ } => String::from("slave"),
+            Self::Main => String::from("master"),
+            Self::Replica { host: _, port: _ } => String::from("Replica"),
         }
     }
 }
