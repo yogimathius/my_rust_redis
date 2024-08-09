@@ -7,6 +7,7 @@ use crate::Args;
 
 pub struct ReplicaClient {
     pub stream: TcpStream,
+    pub handshakes: u8,
 }
 
 impl ReplicaClient {
@@ -16,7 +17,10 @@ impl ReplicaClient {
         let port = iter.next().unwrap();
         let stream = TcpStream::connect(format!("{addr}:{port}")).await.unwrap();
 
-        Ok(Self { stream })
+        Ok(Self {
+            stream,
+            handshakes: 0,
+        })
     }
 
     pub async fn send_ping(&mut self, server: &Server) -> Result<()> {
@@ -31,5 +35,17 @@ impl ReplicaClient {
             .write_all(replconf.serialize().as_bytes())
             .await?;
         Ok(())
+    }
+
+    pub async fn read_response(&mut self) -> Result<String, std::io::Error> {
+        let mut buffer = [0; 512];
+        let n = self.stream.read(&mut buffer).await?;
+        if n == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "Connection closed by the server",
+            ));
+        }
+        Ok(String::from_utf8_lossy(&buffer[..n]).to_string())
     }
 }

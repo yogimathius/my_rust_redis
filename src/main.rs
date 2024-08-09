@@ -29,27 +29,24 @@ async fn main() {
 
             replica.send_ping(&server).await.unwrap();
 
-            let mut buffer = [0; 512];
-
-            match replica.stream.read(&mut buffer).await {
-                Ok(n) => {
-                    if n == 0 {
-                        println!("Connection closed by the server");
-                    } else {
-                        let response = String::from_utf8_lossy(&buffer[..n]);
-                        let response_str = response.as_ref();
-                        match response_str.trim() {
-                            "+PONG" => {
-                                send_handshake_two(replica.stream, &server).await.unwrap();
-                            }
-                            _ => {
-                                println!("Failed to establish replication: {}", response);
+            while replica.handshakes < 2 {
+                match replica.read_response().await {
+                    Ok(response) => match response.trim() {
+                        "+PONG" => {
+                            replica.handshakes += 1;
+                            if replica.handshakes == 1 {
+                                send_handshake_two(&mut replica.stream, &server)
+                                    .await
+                                    .unwrap();
                             }
                         }
+                        _ => {
+                            println!("Failed to establish replication: {}", response);
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("Failed to read from stream: {}", e);
                     }
-                }
-                Err(e) => {
-                    eprintln!("Failed to read from stream: {}", e);
                 }
             }
         }
@@ -60,13 +57,7 @@ async fn main() {
     server.listen(port).await;
 }
 
-async fn send_handshake(stream: &mut TcpStream, server: &Server) -> Result<()> {
-    let msg = server.ping().unwrap();
-    stream.write_all(msg.serialize().as_bytes()).await?;
-    Ok(())
-}
-
-async fn send_handshake_two(mut stream: TcpStream, server: &Server) -> Result<()> {
+async fn send_handshake_two(stream: &mut TcpStream, server: &Server) -> Result<()> {
     let replconf = server.replconf().unwrap();
     stream.write_all(replconf.serialize().as_bytes()).await?;
     Ok(())
