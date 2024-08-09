@@ -3,7 +3,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::server::Server;
-use crate::Args;
 
 pub struct ReplicaClient {
     pub stream: TcpStream,
@@ -47,5 +46,21 @@ impl ReplicaClient {
             ));
         }
         Ok(String::from_utf8_lossy(&buffer[..n]).to_string())
+    }
+
+    pub async fn handle_response(
+        &mut self,
+        response: &str,
+        server: &Server,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        match response.trim() {
+            "+PONG" => {
+                self.send_replconf(server).await?;
+            }
+            _ => {
+                println!("Failed to establish replication: {}", response);
+            }
+        }
+        Ok(())
     }
 }

@@ -31,19 +31,10 @@ async fn main() {
 
             while replica.handshakes < 2 {
                 match replica.read_response().await {
-                    Ok(response) => match response.trim() {
-                        "+PONG" => {
-                            replica.handshakes += 1;
-                            if replica.handshakes == 1 {
-                                send_handshake_two(&mut replica.stream, &server)
-                                    .await
-                                    .unwrap();
-                            }
-                        }
-                        _ => {
-                            println!("Failed to establish replication: {}", response);
-                        }
-                    },
+                    Ok(response) => {
+                        replica.handshakes += 1;
+                        replica.handle_response(&response, &server).await.unwrap();
+                    }
                     Err(e) => {
                         eprintln!("Failed to read from stream: {}", e);
                     }
