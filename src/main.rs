@@ -4,10 +4,7 @@ mod server;
 
 use clap::Parser as ClapParser;
 
-use anyhow::Result;
 use server::Server;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 
 #[derive(ClapParser, Debug, Clone)]
 struct Args {
@@ -29,7 +26,7 @@ async fn main() {
 
             replica.send_ping(&server).await.unwrap();
 
-            while replica.handshakes < 2 {
+            while replica.handshakes < 3 {
                 match replica.read_response().await {
                     Ok(response) => {
                         replica.handshakes += 1;
@@ -46,10 +43,4 @@ async fn main() {
     let port = args.port;
 
     server.listen(port).await;
-}
-
-async fn send_handshake_two(stream: &mut TcpStream, server: &Server) -> Result<()> {
-    let replconf = server.replconf().unwrap();
-    stream.write_all(replconf.serialize().as_bytes()).await?;
-    Ok(())
 }

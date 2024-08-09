@@ -5,6 +5,7 @@ use tokio::net::TcpStream;
 use crate::server::Server;
 
 pub struct ReplicaClient {
+    pub port: u16,
     pub stream: TcpStream,
     pub handshakes: u8,
 }
@@ -17,6 +18,7 @@ impl ReplicaClient {
         let stream = TcpStream::connect(format!("{addr}:{port}")).await.unwrap();
 
         Ok(Self {
+            port: port.parse::<u16>().unwrap(),
             stream,
             handshakes: 0,
         })
@@ -29,7 +31,13 @@ impl ReplicaClient {
     }
 
     pub async fn send_replconf(&mut self, server: &Server) -> Result<()> {
-        let replconf = server.replconf().unwrap();
+        let command = "REPLCONF";
+        let params = match self.handshakes {
+            1 => vec![("listening-port", server.port.to_string())],
+            2 => vec![("capa", "psync2".to_string())],
+            _ => vec![],
+        };
+        let replconf = server.generate_replconf(command, params).unwrap();
         self.stream
             .write_all(replconf.serialize().as_bytes())
             .await?;
@@ -55,6 +63,9 @@ impl ReplicaClient {
     ) -> Result<(), Box<dyn std::error::Error>> {
         match response.trim() {
             "+PONG" => {
+                self.send_replconf(server).await?;
+            }
+            "+OK" => {
                 self.send_replconf(server).await?;
             }
             _ => {

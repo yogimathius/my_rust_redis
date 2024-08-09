@@ -9,7 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[derive(Clone, Debug, PartialEq)]
 pub enum Role {
     Main,
-    Replica { host: String, port: u16 },
+    Slave { host: String, port: u16 },
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,6 +23,7 @@ pub struct RedisItem {
 pub struct Server {
     cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     role: Role,
+    pub port: u16,
 }
 
 impl Server {
@@ -32,7 +33,7 @@ impl Server {
                 let mut iter = vec.into_iter();
                 let addr = iter.next().unwrap();
                 let port = iter.next().unwrap();
-                Role::Replica {
+                Role::Slave {
                     host: addr,
                     port: port.parse::<u16>().unwrap(),
                 }
@@ -42,6 +43,7 @@ impl Server {
         Self {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role,
+            port: args.port,
         }
     }
 
@@ -139,7 +141,7 @@ impl Server {
                 ));
                 info.push_str("master_repl_offset:0");
             }
-            Role::Replica { host, port } => {
+            Role::Slave { host, port } => {
                 info.push_str(&format!("nmaster_host:{}nmaster_port:{}", host, port));
             }
         };
@@ -149,7 +151,7 @@ impl Server {
     pub fn ping(&self) -> Option<Value> {
         match &self.role {
             Role::Main => None,
-            Role::Replica { host: _, port: _ } => {
+            Role::Slave { host: _, port: _ } => {
                 let msg = vec![Value::BulkString(String::from("ping"))];
                 let payload = Value::Array(msg);
                 Some(payload)
@@ -157,15 +159,15 @@ impl Server {
         }
     }
 
-    pub fn replconf(&self) -> Option<Value> {
+    pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
         match &self.role {
             Role::Main => None,
-            Role::Replica { host: _, port: _ } => {
-                let msg = vec![
-                    Value::BulkString(String::from("REPLCONF")),
-                    Value::BulkString(String::from("listening-port")),
-                    Value::BulkString(String::from("6380")),
-                ];
+            Role::Slave { host: _, port: _ } => {
+                let mut msg = vec![Value::BulkString(command.to_string())];
+                for (key, value) in params {
+                    msg.push(Value::BulkString(key.to_string()));
+                    msg.push(Value::BulkString(value.to_string()));
+                }
                 let payload = Value::Array(msg);
                 Some(payload)
             }
@@ -177,7 +179,7 @@ impl ToString for Role {
     fn to_string(&self) -> String {
         match self {
             Self::Main => String::from("master"),
-            Self::Replica { host: _, port: _ } => String::from("Replica"),
+            Self::Slave { host: _, port: _ } => String::from("slave"),
         }
     }
 }
