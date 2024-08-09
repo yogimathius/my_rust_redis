@@ -152,7 +152,7 @@ impl Server {
         match &self.role {
             Role::Main => None,
             Role::Slave { host: _, port: _ } => {
-                let msg = vec![Value::BulkString(String::from("ping"))];
+                let msg = vec![Value::BulkString(String::from("PING"))];
                 let payload = Value::Array(msg);
                 Some(payload)
             }
@@ -194,10 +194,10 @@ async fn handle_client(stream: TcpStream, mut server: Server) {
             let (command, args) = extract_command(value).unwrap();
 
             match command.as_str() {
-                "ping" => Value::SimpleString("PONG".to_string()),
-                "echo" => args.first().unwrap().clone(),
-                "get" => server.get(args),
-                "set" => server.set(args),
+                "PING" => Value::SimpleString("PONG".to_string()),
+                "ECHO" => args.first().unwrap().clone(),
+                "GET" => server.get(args),
+                "SET" => server.set(args),
                 "INFO" => server.info(),
                 "REPLCONF" => Value::SimpleString("OK".to_string()),
                 _ => panic!("Cannot handle command {}", command),
