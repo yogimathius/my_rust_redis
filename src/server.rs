@@ -26,7 +26,19 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(role: Role) -> Self {
+    pub fn new(args: Args) -> Self {
+        let role = match args.replicaof {
+            Some(vec) => {
+                let mut iter = vec.into_iter();
+                let addr = iter.next().unwrap();
+                let port = iter.next().unwrap();
+                Role::Replica {
+                    host: addr,
+                    port: port.parse::<u16>().unwrap(),
+                }
+            }
+            None => Role::Main,
+        };
         Self {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role,

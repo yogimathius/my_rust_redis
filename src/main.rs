@@ -3,14 +3,13 @@ mod resp;
 mod server;
 
 use clap::Parser as ClapParser;
-use resp::Value;
 
 use anyhow::Result;
-use server::{Role, Server};
+use server::Server;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 
-#[derive(ClapParser, Debug)]
+#[derive(ClapParser, Debug, Clone)]
 struct Args {
     #[arg(short, long, default_value_t = 6379)]
     port: u16,
@@ -22,18 +21,7 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    let mut server = Server::new(match args.replicaof.clone() {
-        Some(vec) => {
-            let mut iter = vec.into_iter();
-            let addr = iter.next().unwrap();
-            let port = iter.next().unwrap();
-            Role::Replica {
-                host: addr,
-                port: port.parse::<u16>().unwrap(),
-            }
-        }
-        None => Role::Main,
-    });
+    let mut server = Server::new(args.clone());
 
     match args.replicaof {
         Some(vec) => {
