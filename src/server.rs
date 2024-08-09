@@ -1,8 +1,10 @@
-use crate::resp::Value;
+use crate::resp::{self, Value};
+use crate::Args;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tokio::net::{TcpListener, TcpStream};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Role {
@@ -30,6 +32,28 @@ impl Server {
             role,
         }
     }
+
+    pub async fn listen(&mut self, port: u16) {
+        let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
+        println!("Listening on Port {}", port);
+
+        loop {
+            let stream = listener.accept().await;
+            let server: Server = self.clone();
+
+            match stream {
+                Ok((stream, _)) => {
+                    tokio::spawn(async move {
+                        handle_client(stream, server).await;
+                    });
+                }
+                Err(e) => {
+                    println!("error: {}", e);
+                }
+            }
+        }
+    }
+
     pub fn set(&mut self, args: Vec<Value>) -> Value {
         let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
         let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
@@ -143,6 +167,42 @@ impl ToString for Role {
             Self::Main => String::from("master"),
             Self::Replica { host: _, port: _ } => String::from("Replica"),
         }
+    }
+}
+
+async fn handle_client(stream: TcpStream, mut server: Server) {
+    let mut handler = resp::RespHandler::new(stream);
+
+    loop {
+        let value = handler.read_value().await.unwrap();
+
+        let response = if let Some(value) = value {
+            let (command, args) = extract_command(value).unwrap();
+
+            match command.as_str() {
+                "ping" => Value::SimpleString("PONG".to_string()),
+                "echo" => args.first().unwrap().clone(),
+                "get" => server.get(args),
+                "set" => server.set(args),
+                "INFO" => server.info(),
+                "REPLCONF" => Value::SimpleString("OK".to_string()),
+                _ => panic!("Cannot handle command {}", command),
+            }
+        } else {
+            break;
+        };
+
+        handler.write_value(response).await.unwrap();
+    }
+}
+
+fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
+    match value {
+        Value::Array(a) => Ok((
+            unpack_bulk_str(a.first().unwrap().clone())?,
+            a.into_iter().skip(1).collect(),
+        )),
+        _ => Err(anyhow::anyhow!("Unexpected command format")),
     }
 }
 

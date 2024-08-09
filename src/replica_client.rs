@@ -3,29 +3,25 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::server::Server;
+use crate::Args;
 
 pub struct ReplicaClient {
-    stream: TcpStream,
+    pub stream: TcpStream,
 }
 
 impl ReplicaClient {
-    pub async fn new(address: &str) -> Result<Self> {
-        let stream = TcpStream::connect(address).await?;
+    pub async fn new(vec: Vec<String>) -> Result<Self> {
+        let mut iter = vec.into_iter();
+        let addr = iter.next().unwrap();
+        let port = iter.next().unwrap();
+        let stream = TcpStream::connect(format!("{addr}:{port}")).await.unwrap();
+
         Ok(Self { stream })
     }
 
     pub async fn send_ping(&mut self, server: &Server) -> Result<()> {
         let msg = server.ping().unwrap();
         self.stream.write_all(msg.serialize().as_bytes()).await?;
-
-        // Wait for PONG response
-        let mut buffer = [0; 512];
-        let n = self.stream.read(&mut buffer).await?;
-        let response = String::from_utf8_lossy(&buffer[..n]);
-        if response.trim() != "PONG" {
-            return Err(anyhow::anyhow!("Expected PONG, got {}", response));
-        }
-
         Ok(())
     }
 
