@@ -215,7 +215,9 @@ async fn handle_client(stream: TcpStream, mut server: Server) {
                 "SET" => server.set(args),
                 "INFO" => server.info(),
                 "REPLCONF" => Value::SimpleString("OK".to_string()),
-                "PSYNC" => Value::SimpleString("FULLRESYNC <REPL_ID> 0".to_string()),
+                "PSYNC" => Value::SimpleString(
+                    "FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0".to_string(),
+                ),
                 _ => panic!("Cannot handle command {}", command),
             }
         } else {
