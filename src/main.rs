@@ -26,7 +26,7 @@ async fn main() {
 
             replica.send_ping(&server).await.unwrap();
 
-            while replica.handshakes < 3 {
+            while replica.handshakes < 4 {
                 match replica.read_response().await {
                     Ok(response) => {
                         replica.handshakes += 1;
