@@ -44,6 +44,12 @@ impl ReplicaClient {
         Ok(())
     }
 
+    pub async fn send_psync(&mut self, server: &Server) -> Result<()> {
+        let msg = server.psync().unwrap();
+        self.stream.write_all(msg.serialize().as_bytes()).await?;
+        Ok(())
+    }
+
     pub async fn read_response(&mut self) -> Result<String, std::io::Error> {
         let mut buffer = [0; 512];
         let n = self.stream.read(&mut buffer).await?;
@@ -66,7 +72,11 @@ impl ReplicaClient {
                 self.send_replconf(server).await?;
             }
             "+OK" => {
-                self.send_replconf(server).await?;
+                if self.handshakes == 3 {
+                    self.send_psync(server).await?;
+                } else {
+                    self.send_replconf(server).await?;
+                }
             }
             _ => {
                 println!("Failed to establish replication: {}", response);
