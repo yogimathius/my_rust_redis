@@ -159,6 +159,21 @@ impl Server {
         }
     }
 
+    pub fn psync(&self) -> Option<Value> {
+        match &self.role {
+            Role::Main => None,
+            Role::Slave { host: _, port: _ } => {
+                let msg = vec![
+                    Value::BulkString(String::from("PSYNC")),
+                    Value::BulkString(String::from("?")),
+                    Value::BulkString(String::from("-1")),
+                ];
+                let payload = Value::Array(msg);
+                Some(payload)
+            }
+        }
+    }
+
     pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
         match &self.role {
             Role::Main => None,
@@ -200,6 +215,7 @@ async fn handle_client(stream: TcpStream, mut server: Server) {
                 "SET" => server.set(args),
                 "INFO" => server.info(),
                 "REPLCONF" => Value::SimpleString("OK".to_string()),
+                "PSYNC" => Value::SimpleString("FULLRESYNC <REPL_ID> 0".to_string()),
                 _ => panic!("Cannot handle command {}", command),
             }
         } else {
