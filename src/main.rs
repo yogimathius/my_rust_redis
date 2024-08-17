@@ -1,18 +1,12 @@
+mod command_handler;
+mod model;
 mod replica_client;
 mod resp;
 mod server;
 
-use clap::Parser as ClapParser;
-
+use crate::model::Args;
+use clap::Parser;
 use server::Server;
-
-#[derive(ClapParser, Debug, Clone)]
-struct Args {
-    #[arg(short, long, default_value_t = 6379)]
-    port: u16,
-    #[arg(short, long, value_delimiter = ' ', num_args = 1)]
-    replicaof: Option<Vec<String>>,
-}
 
 #[tokio::main]
 async fn main() {
