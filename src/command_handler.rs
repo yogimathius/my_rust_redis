@@ -44,7 +44,7 @@ where
 }
 
 lazy_static! {
-    static ref COMMANDS: HashMap<&'static str, CommandHandler> = {
+    pub static ref COMMAND_HANDLERS: HashMap<&'static str, CommandHandler> = {
         let mut handlers: HashMap<&str, CommandHandler> = HashMap::new();
         handlers.insert("PING", Box::new(ping_handler));
         handlers.insert("ECHO", Box::new(echo_handler));
