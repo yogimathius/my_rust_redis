@@ -1,7 +1,7 @@
 use crate::model::{Args, Value};
 use crate::replica_client::ReplicaClient;
 use crate::resp::RespHandler;
-use anyhow::Result;
+use crate::utilities::unpack_bulk_str;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -99,7 +99,7 @@ impl Server {
         let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
         let mut cache = self.cache.lock().unwrap();
         // add Expiration
-        let expiration_time = match args.get(2) {
+        let expiration_time: Option<i64> = match args.get(2) {
             None => None,
             Some(Value::BulkString(sub_command)) => {
                 println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
@@ -119,18 +119,17 @@ impl Server {
             }
             _ => panic!("Invalid expiration time"),
         };
-        let redis_item = if let Some(exp_time) = expiration_time {
-            RedisItem {
+        let redis_item = match expiration_time {
+            Some(exp_time) => RedisItem {
                 value,
                 created_at: Instant::now(),
                 expiration: Some(exp_time),
-            }
-        } else {
-            RedisItem {
+            },
+            None => RedisItem {
                 value,
                 created_at: Instant::now(),
                 expiration: None,
-            }
+            },
         };
         cache.insert(key, redis_item);
         println!("Ok");
@@ -234,22 +233,5 @@ impl ToString for Role {
             Self::Main => String::from("master"),
             Self::Slave { host: _, port: _ } => String::from("slave"),
         }
-    }
-}
-
-pub fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
-    match value {
-        Value::Array(a) => Ok((
-            unpack_bulk_str(a.first().unwrap().clone())?,
-            a.into_iter().skip(1).collect(),
-        )),
-        _ => Err(anyhow::anyhow!("Unexpected command format")),
-    }
-}
-
-fn unpack_bulk_str(value: Value) -> Result<String> {
-    match value {
-        Value::BulkString(s) => Ok(s),
-        _ => Err(anyhow::anyhow!("Expected bulk string")),
     }
 }

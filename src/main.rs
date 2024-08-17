@@ -3,6 +3,7 @@ mod model;
 mod replica_client;
 mod resp;
 mod server;
+mod utilities;
 
 use crate::model::Args;
 use clap::Parser;

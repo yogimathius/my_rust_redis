@@ -7,7 +7,8 @@ use tokio::net::TcpStream;
 
 use crate::command_handler::COMMAND_HANDLERS;
 use crate::model::Value;
-use crate::server::{extract_command, Server};
+use crate::server::Server;
+use crate::utilities::extract_command;
 
 pub struct RespHandler {
     stream: TcpStream,
