@@ -89,6 +89,26 @@ fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
     return None;
 }
 
-pub fn parse_int(buffer: &[u8]) -> Result<i64> {
+fn parse_int(buffer: &[u8]) -> Result<i64> {
     Ok(String::from_utf8(buffer.to_vec())?.parse::<i64>()?)
+}
+
+pub fn get_expiration(args: Vec<Value>) -> Result<Option<i64>, String> {
+    match args.get(2) {
+        None => Ok(None),
+        Some(Value::BulkString(sub_command)) => {
+            if sub_command != "px" {
+                panic!("Invalid expiration time")
+            }
+            match args.get(3) {
+                None => Ok(None),
+                Some(Value::BulkString(time)) => {
+                    let time = time.parse::<i64>().unwrap();
+                    Ok(Some(time))
+                }
+                _ => Err("Invalid expiration time".to_string()),
+            }
+        }
+        _ => Err("Invalid expiration time".to_string()),
+    }
 }

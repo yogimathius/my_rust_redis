@@ -1,7 +1,7 @@
 use crate::model::{Args, Value};
 use crate::replica_client::ReplicaClient;
 use crate::resp::RespHandler;
-use crate::utilities::unpack_bulk_str;
+use crate::utilities::{get_expiration, unpack_bulk_str};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -98,39 +98,15 @@ impl Server {
         let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
         let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
         let mut cache = self.cache.lock().unwrap();
-        // add Expiration
-        let expiration_time: Option<i64> = match args.get(2) {
-            None => None,
-            Some(Value::BulkString(sub_command)) => {
-                println!("sub_command = {:?} {}:?", sub_command, sub_command != "px");
-                if sub_command != "px" {
-                    panic!("Invalid expiration time")
-                }
-                match args.get(3) {
-                    None => None,
-                    Some(Value::BulkString(time)) => {
-                        // add expiration
-                        // parse time to i64
-                        let time = time.parse::<i64>().unwrap();
-                        Some(time)
-                    }
-                    _ => panic!("Invalid expiration time"),
-                }
-            }
-            _ => panic!("Invalid expiration time"),
+
+        let expiration_time: Option<i64> = get_expiration(args).unwrap_or(None);
+
+        let redis_item = RedisItem {
+            value,
+            created_at: Instant::now(),
+            expiration: expiration_time,
         };
-        let redis_item = match expiration_time {
-            Some(exp_time) => RedisItem {
-                value,
-                created_at: Instant::now(),
-                expiration: Some(exp_time),
-            },
-            None => RedisItem {
-                value,
-                created_at: Instant::now(),
-                expiration: None,
-            },
-        };
+
         cache.insert(key, redis_item);
         println!("Ok");
         Some(Value::SimpleString("OK".to_string()))
