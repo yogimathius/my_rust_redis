@@ -1,4 +1,5 @@
 use crate::model::{Args, Value};
+use crate::replica_client::ReplicaClient;
 use crate::resp::RespHandler;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -46,6 +47,29 @@ impl Server {
             role,
             port: args.port,
             sync: false,
+        }
+    }
+
+    pub async fn match_replica(&mut self, args: Args) {
+        match args.replicaof {
+            Some(vec) => {
+                let mut replica = ReplicaClient::new(vec).await.unwrap();
+
+                replica.send_ping(&self).await.unwrap();
+
+                while replica.handshakes < 4 {
+                    match replica.read_response().await {
+                        Ok(response) => {
+                            replica.handshakes += 1;
+                            replica.handle_response(&response, &self).await.unwrap();
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to read from stream: {}", e);
+                        }
+                    }
+                }
+            }
+            None => {}
         }
     }
 
