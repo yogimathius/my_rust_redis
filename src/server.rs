@@ -1,4 +1,3 @@
-use crate::handlers::*;
 use crate::model::{Args, Value};
 use crate::replica_client::ReplicaClient;
 use crate::resp::RespHandler;
