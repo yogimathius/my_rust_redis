@@ -1,10 +1,10 @@
-use crate::resp::{self, Value};
-use crate::Args;
+use crate::model::{Args, Value};
+use crate::resp::RespHandler;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Role {
@@ -21,9 +21,10 @@ pub struct RedisItem {
 
 #[derive(Clone)]
 pub struct Server {
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    pub cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     role: Role,
     pub port: u16,
+    pub sync: bool,
 }
 
 impl Server {
@@ -44,6 +45,7 @@ impl Server {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role,
             port: args.port,
+            sync: false,
         }
     }
 
@@ -54,11 +56,11 @@ impl Server {
         loop {
             let stream = listener.accept().await;
             let server: Server = self.clone();
-
             match stream {
                 Ok((stream, _)) => {
                     tokio::spawn(async move {
-                        handle_client(stream, server).await;
+                        let mut handler = RespHandler::new(stream);
+                        handler.handle_client(server).await.unwrap();
                     });
                 }
                 Err(e) => {
@@ -68,7 +70,7 @@ impl Server {
         }
     }
 
-    pub fn set(&mut self, args: Vec<Value>) -> Value {
+    pub fn set(&mut self, args: Vec<Value>) -> Option<Value> {
         let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
         let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
         let mut cache = self.cache.lock().unwrap();
@@ -107,11 +109,11 @@ impl Server {
             }
         };
         cache.insert(key, redis_item);
-
-        Value::SimpleString("OK".to_string())
+        println!("Ok");
+        Some(Value::SimpleString("OK".to_string()))
     }
 
-    pub fn get(&self, args: Vec<Value>) -> Value {
+    pub fn get(&mut self, args: Vec<Value>) -> Option<Value> {
         let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
         let cache = self.cache.lock().unwrap();
         match cache.get(&key) {
@@ -126,13 +128,13 @@ impl Server {
                 } else {
                     Value::BulkString(value.value.clone())
                 };
-                response
+                Some(response)
             }
-            None => Value::NullBulkString,
+            None => Some(Value::NullBulkString),
         }
     }
 
-    pub fn info(&self) -> Value {
+    pub fn info(&self) -> Option<Value> {
         let mut info = format!("role:{}", self.role.to_string());
         match &self.role {
             Role::Main => {
@@ -145,7 +147,7 @@ impl Server {
                 info.push_str(&format!("nmaster_host:{}nmaster_port:{}", host, port));
             }
         };
-        Value::BulkString(info)
+        Some(Value::BulkString(info))
     }
 
     pub fn ping(&self) -> Option<Value> {
@@ -168,6 +170,18 @@ impl Server {
                     Value::BulkString(String::from("?")),
                     Value::BulkString(String::from("-1")),
                 ];
+                let payload = Value::Array(msg);
+                Some(payload)
+            }
+        }
+    }
+
+    pub fn sync(&mut self) -> Option<Value> {
+        match &self.role {
+            Role::Main => None,
+            Role::Slave { host: _, port: _ } => {
+                self.sync = true;
+                let msg = vec![Value::BulkString(String::from("SYNC"))];
                 let payload = Value::Array(msg);
                 Some(payload)
             }
@@ -199,36 +213,7 @@ impl ToString for Role {
     }
 }
 
-async fn handle_client(stream: TcpStream, mut server: Server) {
-    let mut handler = resp::RespHandler::new(stream);
-
-    loop {
-        let value = handler.read_value().await.unwrap();
-
-        let response = if let Some(value) = value {
-            let (command, args) = extract_command(value).unwrap();
-
-            match command.as_str() {
-                "PING" => Value::SimpleString("PONG".to_string()),
-                "ECHO" => args.first().unwrap().clone(),
-                "GET" => server.get(args),
-                "SET" => server.set(args),
-                "INFO" => server.info(),
-                "REPLCONF" => Value::SimpleString("OK".to_string()),
-                "PSYNC" => Value::SimpleString(
-                    "FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0".to_string(),
-                ),
-                _ => panic!("Cannot handle command {}", command),
-            }
-        } else {
-            break;
-        };
-
-        handler.write_value(response).await.unwrap();
-    }
-}
-
-fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
+pub fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
     match value {
         Value::Array(a) => Ok((
             unpack_bulk_str(a.first().unwrap().clone())?,
