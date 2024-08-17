@@ -1,4 +1,5 @@
 mod command_handler;
+mod handlers;
 mod model;
 mod replica_client;
 mod resp;

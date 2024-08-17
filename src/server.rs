@@ -1,7 +1,7 @@
+use crate::handlers::*;
 use crate::model::{Args, Value};
 use crate::replica_client::ReplicaClient;
 use crate::resp::RespHandler;
-use crate::utilities::{get_expiration, unpack_bulk_str};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -15,15 +15,15 @@ pub enum Role {
 
 #[derive(Debug, PartialEq)]
 pub struct RedisItem {
-    value: String,
-    created_at: Instant,
-    expiration: Option<i64>,
+    pub value: String,
+    pub created_at: Instant,
+    pub expiration: Option<i64>,
 }
 
 #[derive(Clone)]
 pub struct Server {
     pub cache: Arc<Mutex<HashMap<String, RedisItem>>>,
-    role: Role,
+    pub role: Role,
     pub port: u16,
     pub sync: bool,
 }
@@ -95,61 +95,18 @@ impl Server {
     }
 
     pub fn set(&mut self, args: Vec<Value>) -> Option<Value> {
-        let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-        let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
-        let mut cache = self.cache.lock().unwrap();
-
-        let expiration_time: Option<i64> = get_expiration(args).unwrap_or(None);
-
-        let redis_item = RedisItem {
-            value,
-            created_at: Instant::now(),
-            expiration: expiration_time,
-        };
-
-        cache.insert(key, redis_item);
-        println!("Ok");
-        Some(Value::SimpleString("OK".to_string()))
+        set_handler(self, args)
     }
 
     pub fn get(&mut self, args: Vec<Value>) -> Option<Value> {
-        let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-        let cache = self.cache.lock().unwrap();
-        match cache.get(&key) {
-            Some(value) => {
-                let response = if let Some(expiration) = value.expiration {
-                    let now = Instant::now();
-                    if now.duration_since(value.created_at).as_millis() > expiration as u128 {
-                        Value::NullBulkString
-                    } else {
-                        Value::BulkString(value.value.clone())
-                    }
-                } else {
-                    Value::BulkString(value.value.clone())
-                };
-                Some(response)
-            }
-            None => Some(Value::NullBulkString),
-        }
+        get_handler(self, args)
     }
 
     pub fn info(&self) -> Option<Value> {
-        let mut info = format!("role:{}", self.role.to_string());
-        match &self.role {
-            Role::Main => {
-                info.push_str(&format!(
-                    "nmaster_replid:8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-                ));
-                info.push_str("master_repl_offset:0");
-            }
-            Role::Slave { host, port } => {
-                info.push_str(&format!("nmaster_host:{}nmaster_port:{}", host, port));
-            }
-        };
-        Some(Value::BulkString(info))
+        info_handler(self)
     }
 
-    pub fn ping(&self) -> Option<Value> {
+    pub fn send_ping(&self) -> Option<Value> {
         match &self.role {
             Role::Main => None,
             Role::Slave { host: _, port: _ } => {
@@ -160,7 +117,7 @@ impl Server {
         }
     }
 
-    pub fn psync(&self) -> Option<Value> {
+    pub fn send_psync(&self) -> Option<Value> {
         match &self.role {
             Role::Main => None,
             Role::Slave { host: _, port: _ } => {
@@ -176,15 +133,7 @@ impl Server {
     }
 
     pub fn sync(&mut self) -> Option<Value> {
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                self.sync = true;
-                let msg = vec![Value::BulkString(String::from("SYNC"))];
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
+        psync_handler(self)
     }
 
     pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {

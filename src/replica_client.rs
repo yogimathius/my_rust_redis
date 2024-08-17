@@ -25,7 +25,7 @@ impl ReplicaClient {
     }
 
     pub async fn send_ping(&mut self, server: &Server) -> Result<()> {
-        let msg = server.ping().unwrap();
+        let msg = server.send_ping().unwrap();
         self.stream.write_all(msg.serialize().as_bytes()).await?;
         Ok(())
     }
@@ -45,7 +45,7 @@ impl ReplicaClient {
     }
 
     pub async fn send_psync(&mut self, server: &Server) -> Result<()> {
-        let msg = server.psync().unwrap();
+        let msg = server.send_psync().unwrap();
         self.stream.write_all(msg.serialize().as_bytes()).await?;
         Ok(())
     }
