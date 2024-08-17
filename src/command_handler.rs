@@ -29,13 +29,13 @@ lazy_static! {
         // Basic commands
         handlers.insert("PING", Box::new(ping_handler));
         handlers.insert("ECHO", Box::new(echo_handler));
-        handlers.insert("SET", Box::new(Server::set));
-        handlers.insert("GET", Box::new(Server::get));
-        handlers.insert("INFO", wrap_immutable_no_args(Server::info));
+        handlers.insert("SET", Box::new(set_handler));
+        handlers.insert("GET", Box::new(get_handler));
+        handlers.insert("INFO", wrap_immutable_no_args(info_handler));
 
         // Replication commands
         handlers.insert("REPLCONF", Box::new(replconf_handler));
-        handlers.insert("PSYNC", wrap_no_args(Server::sync));
+        handlers.insert("PSYNC", wrap_no_args(psync_handler));
 
         // Server commands
         handlers.insert("FLUSHALL", Box::new(flushall_handler));

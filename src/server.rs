@@ -94,18 +94,6 @@ impl Server {
         }
     }
 
-    pub fn set(&mut self, args: Vec<Value>) -> Option<Value> {
-        set_handler(self, args)
-    }
-
-    pub fn get(&mut self, args: Vec<Value>) -> Option<Value> {
-        get_handler(self, args)
-    }
-
-    pub fn info(&self) -> Option<Value> {
-        info_handler(self)
-    }
-
     pub fn send_ping(&self) -> Option<Value> {
         match &self.role {
             Role::Main => None,
@@ -130,10 +118,6 @@ impl Server {
                 Some(payload)
             }
         }
-    }
-
-    pub fn sync(&mut self) -> Option<Value> {
-        psync_handler(self)
     }
 
     pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
