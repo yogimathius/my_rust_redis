@@ -1,5 +1,5 @@
 use crate::model::{Args, Value};
-use crate::replica_client::ReplicaClient;
+use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

@@ -1,7 +1,7 @@
-mod command_handler;
+mod commands;
 mod handlers;
 mod model;
-mod replica_client;
+mod replica;
 mod resp;
 mod server;
 mod utilities;
