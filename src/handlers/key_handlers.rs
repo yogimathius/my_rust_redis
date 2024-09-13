@@ -3,7 +3,7 @@ use crate::{
     server::{RedisItem, Server},
     utilities::{get_expiration, unpack_bulk_str},
 };
-use std::time::Instant;
+use std::{sync::Arc, thread, time::Instant};
 
 pub fn set_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
@@ -70,8 +70,6 @@ pub fn type_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn del_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
-    println!("del_handler handler {:?}", args);
-
     let keys = args
         .iter()
         .map(|arg| unpack_bulk_str(arg.clone()).unwrap())
@@ -91,13 +89,21 @@ pub fn del_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn unlink_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
-    println!("unlink_handler handler {:?}", args);
+    let keys: Vec<String> = args
+        .into_iter()
+        .filter_map(|arg| match arg {
+            Value::BulkString(s) => Some(s),
+            _ => None,
+        })
+        .collect();
+    let cache = Arc::clone(&server.cache);
+    thread::spawn(move || {
+        let mut cache = cache.lock().unwrap();
 
-    // Pseudocode:
-    // 1. Extract key from args.
-    // 2. Lock the cache.
-    // 3. Remove the key from the cache asynchronously.
-    // 4. Return the number of keys removed as an Integer.
+        for key in keys {
+            cache.remove(&key);
+        }
+    });
     Some(Value::SimpleString("OK".to_string()))
 }
 
