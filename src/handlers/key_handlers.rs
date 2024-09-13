@@ -1,5 +1,5 @@
 use crate::{
-    model::Value,
+    models::{redis_type::RedisType, value::Value},
     server::{RedisItem, Server},
     utilities::{get_expiration, unpack_bulk_str},
 };
@@ -16,6 +16,7 @@ pub fn set_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
         value,
         created_at: Instant::now(),
         expiration: expiration_time,
+        redis_type: RedisType::String,
     };
 
     cache.insert(key, redis_item);
@@ -45,16 +46,19 @@ pub fn get_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn keys_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+    println!("keys_handler handler {:?}", args);
     // Pseudocode:
     // 1. Extract pattern from args.
     // 2. Lock the cache.
     // 3. Iterate over keys in the cache and match them against the pattern.
     // 4. Collect matching keys.
     // 5. Return matching keys as a BulkString array.
-    Some(Value::SimpleString("OK".to_string()))
+    Some(Value::Array(vec![]))
 }
 
 pub fn type_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+    println!("type_handler handler {:?}", args);
+
     // Pseudocode:
     // 1. Extract key from args.
     // 2. Lock the cache.
@@ -64,6 +68,8 @@ pub fn type_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn del_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+    println!("del_handler handler {:?}", args);
+
     // Pseudocode:
     // 1. Extract key from args.
     // 2. Lock the cache.
@@ -73,6 +79,8 @@ pub fn del_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn unlink_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+    println!("unlink_handler handler {:?}", args);
+
     // Pseudocode:
     // 1. Extract key from args.
     // 2. Lock the cache.
@@ -82,6 +90,8 @@ pub fn unlink_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn expire_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+    println!("expire_handler handler {:?}", args);
+
     // Pseudocode:
     // 1. Extract key and expiration time from args.
     // 2. Lock the cache.
@@ -91,6 +101,8 @@ pub fn expire_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn rename_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+    println!("rename_handler handler {:?}", args);
+
     // Pseudocode:
     // 1. Extract old key and new key from args.
     // 2. Lock the cache.

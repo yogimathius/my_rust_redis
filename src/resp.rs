@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::commands::COMMAND_HANDLERS;
-use crate::model::Value;
+use crate::models::value::Value;
 use crate::server::Server;
 use crate::utilities::{extract_command, parse_message};
 

@@ -1,14 +1,5 @@
-mod commands;
-mod handlers;
-mod model;
-mod replica;
-mod resp;
-mod server;
-mod utilities;
-
-use crate::model::Args;
 use clap::Parser;
-use server::Server;
+use my_redis_server::{models::args::Args, server::Server};
 
 #[tokio::main]
 async fn main() {

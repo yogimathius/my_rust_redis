@@ -7,7 +7,7 @@ mod tests {
         del_handler, expire_handler, get_handler, keys_handler, rename_handler, set_handler,
         type_handler, unlink_handler,
     };
-    use my_redis_server::model::Value;
+    use my_redis_server::models::value::Value;
     use my_redis_server::server::{Role, Server};
 
     fn setup() -> Server {
@@ -60,8 +60,14 @@ mod tests {
         set_handler(&mut server, args);
         let args = vec![Value::BulkString("*".to_string())];
         let result = keys_handler(&mut server, args);
-        // This is a placeholder assertion, update it with the actual expected result
-        assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
+        // assert actual keys returned
+        assert_eq!(
+            result,
+            Some(Value::Array(vec![
+                Value::SimpleString("key1".to_string()),
+                Value::SimpleString("key2".to_string())
+            ]))
+        );
     }
 
     #[test]

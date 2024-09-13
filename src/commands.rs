@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use crate::handlers::*;
 
-use crate::{model::Value, server::Server};
+use crate::models::value::Value;
+use crate::server::Server;
 use lazy_static::lazy_static;
 
 type CommandHandler = Box<dyn Fn(&mut Server, Vec<Value>) -> Option<Value> + Send + Sync>;

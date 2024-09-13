@@ -1,4 +1,6 @@
-use crate::model::{Args, Value};
+use crate::models::args::Args;
+use crate::models::redis_type::RedisType;
+use crate::models::value::Value;
 use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
 use std::collections::HashMap;
@@ -17,6 +19,7 @@ pub struct RedisItem {
     pub value: String,
     pub created_at: Instant,
     pub expiration: Option<i64>,
+    pub redis_type: RedisType,
 }
 
 #[derive(Clone)]

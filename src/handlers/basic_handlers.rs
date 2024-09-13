@@ -1,5 +1,5 @@
 use crate::{
-    model::Value,
+    models::value::Value,
     server::{Role, Server},
 };
 

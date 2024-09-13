@@ -1,6 +1,7 @@
-use crate::model::Value;
 use anyhow::Result;
 use bytes::BytesMut;
+
+use crate::models::value::Value;
 
 pub fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
     match value {

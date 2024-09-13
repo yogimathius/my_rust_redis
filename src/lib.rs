@@ -1,6 +1,6 @@
 pub mod commands;
 pub mod handlers;
-pub mod model;
+pub mod models;
 pub mod replica;
 pub mod resp;
 pub mod server;
