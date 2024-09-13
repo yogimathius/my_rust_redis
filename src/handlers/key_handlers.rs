@@ -57,14 +57,16 @@ pub fn keys_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
 }
 
 pub fn type_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
-    println!("type_handler handler {:?}", args);
+    if let Some(Value::BulkString(key)) = args.get(0) {
+        let cache = server.cache.lock().unwrap();
+        if let Some(item) = cache.get(key) {
+            return Some(Value::SimpleString(item.redis_type.to_string()));
+        } else {
+            return Some(Value::SimpleString(RedisType::None.to_string()));
+        }
+    }
 
-    // Pseudocode:
-    // 1. Extract key from args.
-    // 2. Lock the cache.
-    // 3. Check the type of the value associated with the key.
-    // 4. Return the type as a SimpleString.
-    Some(Value::SimpleString("OK".to_string()))
+    Some(Value::SimpleString(RedisType::None.to_string()))
 }
 
 pub fn del_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
