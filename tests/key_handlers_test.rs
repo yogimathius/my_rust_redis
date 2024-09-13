@@ -159,7 +159,6 @@ mod tests {
             Value::BulkString("10".to_string()),
         ];
         let result = expire_handler(&mut server, args);
-        // This is a placeholder assertion, update it with the actual expected result
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
     }
 
