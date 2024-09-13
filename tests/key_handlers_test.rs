@@ -90,14 +90,27 @@ mod tests {
     fn test_del_handler() {
         let mut server = setup();
         let args = vec![
-            Value::BulkString("key".to_string()),
-            Value::BulkString("value".to_string()),
+            Value::BulkString("key1".to_string()),
+            Value::BulkString("value1".to_string()),
         ];
         set_handler(&mut server, args);
-        let args = vec![Value::BulkString("key".to_string())];
+        let args = vec![
+            Value::BulkString("key2".to_string()),
+            Value::BulkString("value2".to_string()),
+        ];
+        set_handler(&mut server, args);
+
+        let args = vec![
+            Value::BulkString("key1".to_string()),
+            Value::BulkString("key2".to_string()),
+            Value::BulkString("nonexistent_key".to_string()),
+        ];
         let result = del_handler(&mut server, args);
-        // This is a placeholder assertion, update it with the actual expected result
-        assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
+        assert_eq!(result, Some(Value::Integer(2)));
+
+        let args = vec![Value::BulkString("nonexistent_key".to_string())];
+        let result = del_handler(&mut server, args);
+        assert_eq!(result, Some(Value::Integer(0)));
     }
 
     #[test]

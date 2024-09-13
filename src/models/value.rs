@@ -3,6 +3,7 @@ pub enum Value {
     SimpleString(String),
     BulkString(String),
     Array(Vec<Value>),
+    Integer(i64),
     NullBulkString,
 }
 
@@ -20,6 +21,7 @@ impl Value {
             Value::SimpleString(s) => format!("+{}\r\n", s),
             Value::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
             Value::NullBulkString => format!("$-1\r\n"),
+            Value::Integer(i) => format!(":{}\r\n", i),
         }
     }
 }
