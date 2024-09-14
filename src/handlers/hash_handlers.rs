@@ -1,6 +1,6 @@
 use crate::{models::value::Value, server::Server};
 
-pub fn hget_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hget_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key and field from args.
     // 2. Lock the cache.
@@ -9,7 +9,7 @@ pub fn hget_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hexists_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hexists_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key and field from args.
     // 2. Lock the cache.
@@ -19,7 +19,7 @@ pub fn hexists_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hdel_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hdel_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key and field(s) from args.
     // 2. Lock the cache.
@@ -29,7 +29,7 @@ pub fn hdel_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hgetall_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hgetall_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key from args.
     // 2. Lock the cache.
@@ -38,7 +38,7 @@ pub fn hgetall_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hkeys_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hkeys_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key from args.
     // 2. Lock the cache.
@@ -47,7 +47,7 @@ pub fn hkeys_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hlen_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hlen_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key from args.
     // 2. Lock the cache.
@@ -56,7 +56,7 @@ pub fn hlen_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hmset_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hmset_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key and field-value pairs from args.
     // 2. Lock the cache.
@@ -66,7 +66,7 @@ pub fn hmset_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hset_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hset_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key, field, and value from args.
     // 2. Lock the cache.
@@ -76,7 +76,7 @@ pub fn hset_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn hvals_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn hvals_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key from args.
     // 2. Lock the cache.

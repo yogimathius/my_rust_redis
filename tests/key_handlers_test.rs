@@ -4,8 +4,8 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use my_redis_server::handlers::{
-        del_handler, expire_handler, get_handler, keys_handler, rename_handler, set_handler,
-        type_handler, unlink_handler,
+        del_handler, expire_handler, get_handler, rename_handler, set_handler, type_handler,
+        unlink_handler,
     };
     use my_redis_server::models::value::Value;
     use my_redis_server::server::{Role, Server};
@@ -43,6 +43,21 @@ mod tests {
         let args = vec![Value::BulkString("key".to_string())];
         let result = get_handler(&mut server, args);
         assert_eq!(result, Some(Value::BulkString("value".to_string())));
+    }
+
+    #[test]
+    fn test_set_handler_with_expiration() {
+        let mut server = setup();
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("value".to_string()),
+            Value::BulkString("px".to_string()),
+            Value::BulkString("10".to_string()),
+        ];
+        let result = set_handler(&mut server, args);
+        assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
+        let cache = server.cache.lock().unwrap();
+        assert!(cache.contains_key("key"));
     }
 
     #[test]
@@ -134,7 +149,6 @@ mod tests {
         let result = unlink_handler(&mut server, args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
 
-        // Allow some time for the async operation to complete
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         let args = vec![Value::BulkString("key1".to_string())];
@@ -158,8 +172,104 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("10".to_string()),
         ];
-        let result = expire_handler(&mut server, args);
-        assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
+        println!("args {:?}", args);
+        let result = expire_handler(&mut server, args.clone());
+        assert_eq!(result, Some(Value::Integer(1)));
+    }
+
+    #[test]
+    fn test_expire_handler_with_nx() {
+        let mut server = setup();
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("value".to_string()),
+        ];
+        set_handler(&mut server, args);
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("10".to_string()),
+            Value::BulkString("NX".to_string()),
+        ];
+        println!("args {:?}", args);
+        let result = expire_handler(&mut server, args.clone());
+        assert_eq!(result, Some(Value::Integer(1)));
+    }
+
+    #[test]
+    fn test_expire_handler_with_xx() {
+        let mut server = setup();
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("value".to_string()),
+            Value::BulkString("px".to_string()),
+            Value::BulkString("10".to_string()),
+        ];
+        set_handler(&mut server, args);
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("10".to_string()),
+            Value::BulkString("XX".to_string()),
+        ];
+        println!("args {:?}", args);
+        let result = expire_handler(&mut server, args.clone());
+        assert_eq!(result, Some(Value::Integer(1)));
+    }
+
+    #[test]
+    fn test_expire_handler_with_gt() {
+        let mut server = setup();
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("value".to_string()),
+        ];
+        set_handler(&mut server, args);
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("5".to_string()),
+        ];
+        expire_handler(&mut server, args.clone());
+
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("10".to_string()),
+            Value::BulkString("GT".to_string()),
+        ];
+        println!("args {:?}", args);
+        let result = expire_handler(&mut server, args.clone());
+        assert_eq!(result, Some(Value::Integer(1)));
+    }
+
+    #[test]
+    fn test_expire_handler_with_lt() {
+        let mut server = setup();
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("value".to_string()),
+        ];
+        set_handler(&mut server, args);
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("15".to_string()),
+        ];
+        expire_handler(&mut server, args.clone());
+
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("10".to_string()),
+            Value::BulkString("LT".to_string()),
+        ];
+        println!("args {:?}", args);
+        let result = expire_handler(&mut server, args.clone());
+        assert_eq!(result, Some(Value::Integer(1)));
+
+        let args = vec![
+            Value::BulkString("key".to_string()),
+            Value::BulkString("10".to_string()),
+            Value::BulkString("LT".to_string()),
+        ];
+
+        let result = expire_handler(&mut server, args.clone());
+        assert_eq!(result, Some(Value::Integer(0)));
     }
 
     #[test]
