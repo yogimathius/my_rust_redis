@@ -1,7 +1,7 @@
-use crate::{models::value::Value, server::Server};
+use crate::{log, models::value::Value, server::Server};
 
 pub fn rename_handler(_server: &mut Server, args: Vec<Value>) -> Option<Value> {
-    println!("rename_handler handler {:?}", args);
+    log!("rename_handler handler {:?}", args);
 
     // Pseudocode:
     // 1. Extract old key and new key from args.

@@ -24,10 +24,7 @@ mod tests {
             Value::BulkString("value".to_string()),
         ];
         set_handler(&mut server, args);
-        let args = vec![
-            Value::BulkString("key".to_string()),
-            Value::BulkString("10".to_string()),
-        ];
+        let args = vec![Value::BulkString("key".to_string()), Value::Integer(10)];
         println!("args {:?}", args);
         let result = expire_handler(&mut server, args.clone());
         assert_eq!(result, Some(Value::Integer(1)));
@@ -43,7 +40,7 @@ mod tests {
         set_handler(&mut server, args);
         let args = vec![
             Value::BulkString("key".to_string()),
-            Value::BulkString("10".to_string()),
+            Value::Integer(10),
             Value::BulkString("NX".to_string()),
         ];
         println!("args {:?}", args);
@@ -57,13 +54,13 @@ mod tests {
         let args = vec![
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
-            Value::BulkString("px".to_string()),
-            Value::BulkString("10".to_string()),
+            Value::BulkString("PX".to_string()),
+            Value::Integer(10),
         ];
         set_handler(&mut server, args);
         let args = vec![
             Value::BulkString("key".to_string()),
-            Value::BulkString("10".to_string()),
+            Value::Integer(10),
             Value::BulkString("XX".to_string()),
         ];
         println!("args {:?}", args);
@@ -79,15 +76,12 @@ mod tests {
             Value::BulkString("value".to_string()),
         ];
         set_handler(&mut server, args);
-        let args = vec![
-            Value::BulkString("key".to_string()),
-            Value::BulkString("5".to_string()),
-        ];
+        let args = vec![Value::BulkString("key".to_string()), Value::Integer(5)];
         expire_handler(&mut server, args.clone());
 
         let args = vec![
             Value::BulkString("key".to_string()),
-            Value::BulkString("10".to_string()),
+            Value::Integer(10),
             Value::BulkString("GT".to_string()),
         ];
         println!("args {:?}", args);
@@ -103,15 +97,12 @@ mod tests {
             Value::BulkString("value".to_string()),
         ];
         set_handler(&mut server, args);
-        let args = vec![
-            Value::BulkString("key".to_string()),
-            Value::BulkString("15".to_string()),
-        ];
+        let args = vec![Value::BulkString("key".to_string()), Value::Integer(15)];
         expire_handler(&mut server, args.clone());
 
         let args = vec![
             Value::BulkString("key".to_string()),
-            Value::BulkString("10".to_string()),
+            Value::Integer(10),
             Value::BulkString("LT".to_string()),
         ];
         println!("args {:?}", args);
@@ -120,7 +111,7 @@ mod tests {
 
         let args = vec![
             Value::BulkString("key".to_string()),
-            Value::BulkString("10".to_string()),
+            Value::Integer(10),
             Value::BulkString("LT".to_string()),
         ];
 

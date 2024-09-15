@@ -1,8 +1,21 @@
+use std::fmt::Arguments;
+
 use anyhow::Result;
 use bytes::BytesMut;
 
 use crate::models::value::Value;
 use crate::server::RedisItem;
+
+pub fn log_message(file: &str, line: u32, args: Arguments) {
+    println!("{}:{}: {:?}", file, line, args);
+}
+
+#[macro_export]
+macro_rules! log {
+    ($($arg:tt)*) => {
+        $crate::utilities::log_message(file!(), line!(), format_args!($($arg)*))
+    };
+}
 
 pub fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
     match value {
@@ -18,6 +31,13 @@ pub fn unpack_bulk_str(value: Value) -> Result<String> {
     match value {
         Value::BulkString(s) => Ok(s),
         _ => Err(anyhow::anyhow!("Expected bulk string")),
+    }
+}
+
+pub fn unpack_integer(value: Value) -> Result<i64> {
+    match value {
+        Value::Integer(i) => Ok(i),
+        _ => Err(anyhow::anyhow!("Expected integer")),
     }
 }
 
@@ -95,25 +115,25 @@ fn parse_int(buffer: &[u8]) -> Result<i64> {
     Ok(String::from_utf8(buffer.to_vec())?.parse::<i64>()?)
 }
 
-pub fn get_expiration(args: Vec<Value>) -> Result<Option<i64>, String> {
-    match args.get(2) {
-        None => Ok(None),
-        Some(Value::BulkString(sub_command)) => {
-            if sub_command != "px" {
-                panic!("Invalid expiration time")
-            }
-            match args.get(3) {
-                None => Ok(None),
-                Some(Value::BulkString(time)) => {
-                    let time = time.parse::<i64>().unwrap();
-                    Ok(Some(time))
-                }
-                _ => Err("Invalid expiration time".to_string()),
-            }
-        }
-        _ => Err("Invalid expiration time".to_string()),
-    }
-}
+// pub fn get_expiration(args: Vec<Value>) -> Result<Option<i64>, String> {
+//     match args.get(2) {
+//         Some(Value::BulkString(sub_command)) => {
+//             if sub_command != "px" {
+//                 panic!("Invalid expiration time")
+//             }
+//             match args.get(3) {
+//                 None => Ok(None),
+//                 Some(Value::Integer(time)) => {
+//                     let time = time.parse::<i64>().unwrap();
+//                     Ok(Some(time))
+//                 }
+//                 _ => Err("Invalid expiration time".to_string()),
+//             }
+//         }
+//         None => Ok(None),
+//         _ => Err("Invalid expiration time".to_string()),
+//     }
+// }
 
 /**
 NX -- Set expiry only when the key has no expiry
@@ -123,30 +143,29 @@ LT -- Set expiry only when the new expiry is less than current one
  */
 // helper function
 
-pub fn should_set_expiry(item: &RedisItem, expiration: i64, option: Option<String>) -> bool {
-    println!("item {:?}", item);
-    println!("expiration {:?}", expiration);
-    println!("option {:?}", option);
+pub fn should_set_expiry(item: &RedisItem, expiration: i64, option: String) -> bool {
+    log!("item {:?}", item);
+    log!("expiration {:?}", expiration);
+    log!("option {:?}", option);
 
-    match option.as_deref() {
-        Some("NX") => {
+    match option.as_str() {
+        "NX" => {
             return item.expiration.is_none();
         }
-        Some("XX") => {
+        "XX" => {
+            log!("item.expiration {:?}", item.expiration);
             return item.expiration.is_some();
         }
-        Some("GT") => {
+        "GT" => {
             return item.expiration.is_some() && item.expiration.unwrap() < expiration;
         }
-        Some("LT") => {
+        "LT" => {
             return item.expiration.is_some() && item.expiration.unwrap() > expiration;
         }
-        None => {
-            println!("no option");
-            return true;
-        }
         _ => {
-            return false;
+            log!("no option");
+
+            return true;
         }
     }
 }

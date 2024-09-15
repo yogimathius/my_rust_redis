@@ -2,6 +2,7 @@ use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+use crate::log;
 use crate::server::Server;
 
 pub struct ReplicaClient {
@@ -79,7 +80,7 @@ impl ReplicaClient {
                 }
             }
             _ => {
-                println!("Failed to establish replication: {}", response);
+                log!("Failed to establish replication: {}", response);
             }
         }
         Ok(())

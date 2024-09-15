@@ -1,3 +1,4 @@
+use crate::log;
 use crate::models::args::Args;
 use crate::models::redis_type::RedisType;
 use crate::models::value::Value;
@@ -77,7 +78,7 @@ impl Server {
 
     pub async fn listen(&mut self, port: u16) {
         let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
-        println!("Listening on Port {}", port);
+        log!("Listening on Port {}", port);
 
         loop {
             let stream = listener.accept().await;
@@ -90,7 +91,7 @@ impl Server {
                     });
                 }
                 Err(e) => {
-                    println!("error: {}", e);
+                    log!("error: {}", e);
                 }
             }
         }
