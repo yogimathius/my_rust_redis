@@ -3,7 +3,6 @@ pub mod hash_handlers;
 pub mod key_handlers;
 pub mod list_handlers;
 pub mod replication_handlers;
-pub mod utilities;
 
 pub use basic_handlers::*;
 pub use hash_handlers::*;
