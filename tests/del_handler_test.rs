@@ -23,23 +23,23 @@ mod tests {
             Value::BulkString("key1".to_string()),
             Value::BulkString("value1".to_string()),
         ];
-        set_handler(&mut server, args);
+        set_handler(&mut server, "key1".to_string(), args);
         let args = vec![
             Value::BulkString("key2".to_string()),
             Value::BulkString("value2".to_string()),
         ];
-        set_handler(&mut server, args);
+        set_handler(&mut server, "key2".to_string(), args);
 
         let args = vec![
             Value::BulkString("key1".to_string()),
             Value::BulkString("key2".to_string()),
             Value::BulkString("nonexistent_key".to_string()),
         ];
-        let result = del_handler(&mut server, args);
+        let result = del_handler(&mut server, "key1".to_string(), args);
         assert_eq!(result, Some(Value::Integer(2)));
 
         let args = vec![Value::BulkString("nonexistent_key".to_string())];
-        let result = del_handler(&mut server, args);
+        let result = del_handler(&mut server, "nonexistent_key".to_string(), args);
         assert_eq!(result, Some(Value::Integer(0)));
     }
 }

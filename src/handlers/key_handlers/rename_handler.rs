@@ -1,6 +1,6 @@
 use crate::{log, models::value::Value, server::Server};
 
-pub fn rename_handler(_server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn rename_handler(_server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     log!("rename_handler handler {:?}", args);
 
     // Pseudocode:

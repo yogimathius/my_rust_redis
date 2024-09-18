@@ -23,12 +23,12 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        set_handler(&mut server, args);
+        set_handler(&mut server, "key".to_string(),  args);
         let args = vec![
             Value::BulkString("key".to_string()),
             Value::BulkString("new_key".to_string()),
         ];
-        let result = rename_handler(&mut server, args);
+        let result = rename_handler(&mut server, "key".to_string(),  args);
         // This is a placeholder assertion, update it with the actual expected result
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
     }

@@ -1,7 +1,7 @@
 use crate::{models::value::Value, server::Server, utilities::unpack_bulk_str};
 use std::time::Instant;
 
-pub fn get_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn get_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
     let cache = server.cache.lock().unwrap();
     match cache.get(&key) {

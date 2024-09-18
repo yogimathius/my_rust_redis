@@ -3,15 +3,15 @@ use crate::{
     server::{Role, Server},
 };
 
-pub fn ping_handler(_: &mut Server, _: Vec<Value>) -> Option<Value> {
+pub fn ping_handler(_: &mut Server, _key: String, _: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("PONG".to_string()))
 }
 
-pub fn echo_handler(_: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn echo_handler(_: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     Some(args.first().unwrap().clone())
 }
 
-pub fn flushall_handler(server: &mut Server, _: Vec<Value>) -> Option<Value> {
+pub fn flushall_handler(server: &mut Server, _key: String, _: Vec<Value>) -> Option<Value> {
     let mut cache = server.cache.lock().unwrap();
     cache.clear();
     Some(Value::SimpleString("OK".to_string()))

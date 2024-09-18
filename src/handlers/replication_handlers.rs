@@ -3,7 +3,7 @@ use crate::{
     server::{Role, Server},
 };
 
-pub fn replconf_handler(_: &mut Server, _: Vec<Value>) -> Option<Value> {
+pub fn replconf_handler(_: &mut Server, _: String, _: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 

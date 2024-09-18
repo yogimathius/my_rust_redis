@@ -6,7 +6,7 @@ use crate::{
 };
 use std::time::Instant;
 
-pub fn set_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn set_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
     let value = Value::BulkString(unpack_bulk_str(args.get(1).unwrap().clone()).unwrap());
     let option = match args.get(2) {

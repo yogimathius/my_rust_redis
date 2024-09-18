@@ -6,22 +6,24 @@ use crate::models::value::Value;
 use crate::server::Server;
 use lazy_static::lazy_static;
 
-type CommandHandler = Box<dyn Fn(&mut Server, Vec<Value>) -> Option<Value> + Send + Sync>;
+type CommandHandler = Box<dyn Fn(&mut Server, String, Vec<Value>) -> Option<Value> + Send + Sync>;
 
-fn wrap_no_args<F>(f: F) -> Box<dyn Fn(&mut Server, Vec<Value>) -> Option<Value> + Send + Sync>
+fn wrap_no_args<F>(
+    f: F,
+) -> Box<dyn Fn(&mut Server, String, Vec<Value>) -> Option<Value> + Send + Sync>
 where
     F: Fn(&mut Server) -> Option<Value> + Send + Sync + 'static,
 {
-    Box::new(move |server, _| f(server))
+    Box::new(move |server, _, _| f(server))
 }
 
 fn wrap_immutable_no_args<F>(
     f: F,
-) -> Box<dyn Fn(&mut Server, Vec<Value>) -> Option<Value> + Send + Sync>
+) -> Box<dyn Fn(&mut Server, String, Vec<Value>) -> Option<Value> + Send + Sync>
 where
     F: Fn(&Server) -> Option<Value> + Send + Sync + 'static,
 {
-    Box::new(move |server, _| f(server))
+    Box::new(move |server, _, _| f(server))
 }
 
 lazy_static! {

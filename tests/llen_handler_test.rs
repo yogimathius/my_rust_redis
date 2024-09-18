@@ -36,7 +36,7 @@ mod tests {
         let mut server = setup();
         let key = "key".to_string();
         let args = vec![Value::BulkString(key.clone())];
-        let result = llen_handler(&mut server, args);
+        let result = llen_handler(&mut server, key, args);
         assert_eq!(result, Some(Value::Integer(3)));
     }
 
@@ -45,7 +45,7 @@ mod tests {
         let mut server = setup();
         let key = "no_key".to_string();
         let args = vec![Value::BulkString(key.clone())];
-        let result = llen_handler(&mut server, args);
+        let result = llen_handler(&mut server, key, args);
         assert_eq!(result, Some(Value::Error("ERR no such key".to_string())));
     }
 
@@ -61,7 +61,7 @@ mod tests {
         };
         server.cache.lock().unwrap().insert(key.clone(), redis_item);
         let args = vec![Value::BulkString(key.clone())];
-        let result = llen_handler(&mut server, args);
+        let result = llen_handler(&mut server, key, args);
         assert_eq!(
             result,
             Some(Value::Error(

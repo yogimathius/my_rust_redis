@@ -17,12 +17,17 @@ macro_rules! log {
     };
 }
 
-pub fn extract_command(value: Value) -> Result<(String, Vec<Value>)> {
+pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
     match value {
-        Value::Array(a) => Ok((
-            unpack_bulk_str(a.first().unwrap().clone())?,
-            a.into_iter().skip(1).collect(),
-        )),
+        Value::Array(a) => {
+            let command = unpack_bulk_str(a.first().unwrap().clone()).unwrap();
+            let mut iter = a.into_iter();
+
+            iter.next();
+            let key = unpack_bulk_str(iter.next().ok_or_else(|| anyhow::anyhow!("Missing key"))?)?;
+
+            Ok((command, key, iter.collect()))
+        }
         _ => Err(anyhow::anyhow!("Unexpected command format")),
     }
 }

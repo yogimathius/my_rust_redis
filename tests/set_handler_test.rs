@@ -23,7 +23,7 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        let result = set_handler(&mut server, args);
+        let result = set_handler(&mut server, "key".to_string(),  args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
         let cache = server.cache.lock().unwrap();
         assert!(cache.contains_key("key"));
@@ -38,7 +38,7 @@ mod tests {
             Value::BulkString("px".to_string()),
             Value::BulkString("10".to_string()),
         ];
-        let result = set_handler(&mut server, args);
+        let result = set_handler(&mut server, "key".to_string(),  args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
         let cache = server.cache.lock().unwrap();
         assert!(cache.contains_key("key"));

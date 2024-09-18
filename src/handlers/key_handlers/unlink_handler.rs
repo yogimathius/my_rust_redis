@@ -1,7 +1,7 @@
 use crate::{models::value::Value, server::Server};
 use std::{sync::Arc, thread};
 
-pub fn unlink_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn unlink_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     let keys: Vec<String> = args
         .into_iter()
         .filter_map(|arg| match arg {

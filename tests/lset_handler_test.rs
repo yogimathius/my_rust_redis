@@ -43,7 +43,7 @@ mod tests {
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, args);
+        let result = lset_handler(&mut server, key.clone(), args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
 
         // Verify the value was set correctly
@@ -81,7 +81,7 @@ mod tests {
             Value::Integer(10),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, args);
+        let result = lset_handler(&mut server, key, args);
         assert_eq!(
             result,
             Some(Value::Error("ERR index out of range".to_string()))
@@ -98,7 +98,7 @@ mod tests {
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, args);
+        let result = lset_handler(&mut server, "non_existent_key".to_string(), args);
         assert_eq!(result, Some(Value::Error("ERR no such key".to_string())));
     }
 
@@ -122,7 +122,7 @@ mod tests {
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, args);
+        let result = lset_handler(&mut server, key, args);
         assert_eq!(
             result,
             Some(Value::Error(

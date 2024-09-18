@@ -6,7 +6,7 @@ use crate::{
 };
 use std::time::Instant;
 
-pub fn expire_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn expire_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     log!("args {:?}", args);
     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
     let expiration_time = unpack_integer(args.get(1).unwrap().clone()).unwrap();

@@ -1,6 +1,6 @@
 use crate::{models::value::Value, server::Server};
 
-pub fn lindex_handler(_server: &mut Server, _args: Vec<Value>) -> Option<Value> {
+pub fn lindex_handler(_server: &mut Server, _key: String, _args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     // 1. Extract the key and index from args.
     // 2. Lock the cache.

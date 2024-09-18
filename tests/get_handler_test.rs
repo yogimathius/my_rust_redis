@@ -23,9 +23,9 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        set_handler(&mut server, args);
+        set_handler(&mut server, "key".to_string(), args);
         let args = vec![Value::BulkString("key".to_string())];
-        let result = get_handler(&mut server, args);
+        let result = get_handler(&mut server, "key".to_string(), args);
         assert_eq!(result, Some(Value::BulkString("value".to_string())));
     }
 }

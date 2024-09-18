@@ -3,7 +3,7 @@ use crate::{
     server::Server,
 };
 
-pub fn type_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn type_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     if let Some(Value::BulkString(key)) = args.get(0) {
         let cache = server.cache.lock().unwrap();
         if let Some(item) = cache.get(key) {

@@ -22,12 +22,12 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        lset_handler(&mut server, args);
+        lset_handler(&mut server, "key".to_string(), args);
         let args = vec![
             Value::BulkString("key".to_string()),
             Value::BulkString("10".to_string()),
         ];
-        let result = lindex_handler(&mut server, args);
+        let result = lindex_handler(&mut server, "key".to_string(), args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
     }
 }

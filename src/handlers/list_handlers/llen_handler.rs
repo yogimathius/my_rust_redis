@@ -5,7 +5,7 @@ use crate::{
     server::Server,
 };
 
-pub fn llen_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn llen_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     // Pseudocode:
     let key = match args.get(0) {
         Some(Value::BulkString(s)) => s.clone(),

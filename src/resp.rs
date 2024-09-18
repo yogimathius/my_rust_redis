@@ -28,10 +28,10 @@ impl RespHandler {
             let value: Option<Value> = self.read_value().await?;
 
             let response: Option<Value> = if let Some(value) = value {
-                let (command, args) = extract_command(value).unwrap();
+                let (command, key, args) = extract_command(value).unwrap();
 
                 if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
-                    command_function(&mut server, args)
+                    command_function(&mut server, key, args)
                 } else {
                     Value::SimpleString("Unknown command".to_string());
                     std::process::exit(1);

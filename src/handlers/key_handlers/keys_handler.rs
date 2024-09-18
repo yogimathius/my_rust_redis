@@ -1,6 +1,6 @@
 use crate::{models::value::Value, server::Server};
 
-pub fn keys_handler(_server: &mut Server, args: Vec<Value>) -> Option<Value> {
+pub fn keys_handler(_server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
     println!("keys_handler handler {:?}", args);
     // Pseudocode:
     // 1. Extract pattern from args.
