@@ -5,7 +5,6 @@ use crate::{
 use std::sync::MutexGuard;
 
 pub fn lset_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
-    // Extract the key, index, and value from args
     let key = match args.get(0) {
         Some(Value::BulkString(s)) => s.clone(),
         _ => {
