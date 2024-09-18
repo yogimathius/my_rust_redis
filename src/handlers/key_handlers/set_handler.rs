@@ -8,7 +8,7 @@ use std::time::Instant;
 
 pub fn set_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
     let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
-    let value = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
+    let value = Value::BulkString(unpack_bulk_str(args.get(1).unwrap().clone()).unwrap());
     let option = match args.get(2) {
         Some(value) => unpack_bulk_str(value.clone()),
         None => unpack_bulk_str(Value::BulkString("".to_string())),

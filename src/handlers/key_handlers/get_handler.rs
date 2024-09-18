@@ -11,10 +11,10 @@ pub fn get_handler(server: &mut Server, args: Vec<Value>) -> Option<Value> {
                 if now.duration_since(value.created_at).as_millis() > expiration as u128 {
                     Value::NullBulkString
                 } else {
-                    Value::BulkString(value.value.clone())
+                    value.value.clone()
                 }
             } else {
-                Value::BulkString(value.value.clone())
+                value.value.clone()
             };
             Some(response)
         }

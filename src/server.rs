@@ -17,7 +17,7 @@ pub enum Role {
 
 #[derive(Debug, PartialEq)]
 pub struct RedisItem {
-    pub value: String,
+    pub value: Value,
     pub created_at: Instant,
     pub expiration: Option<i64>,
     pub redis_type: RedisType,
