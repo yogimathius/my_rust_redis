@@ -1,6 +1,7 @@
 use crate::{
     models::{redis_type::RedisType, value::Value},
     server::Server,
+    utilities::lock_and_get_item,
 };
 use std::sync::MutexGuard;
 
@@ -28,27 +29,22 @@ pub fn lset_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Opti
         }
     };
 
-    // Lock the cache
-    let mut cache: MutexGuard<_> = server.cache.lock().unwrap();
-
-    // Retrieve the list associated with the key
-    let item = match cache.get_mut(&key) {
-        Some(item) => item,
-        None => return Some(Value::Error("ERR no such key".to_string())),
-    };
-
-    if let RedisType::List = item.redis_type {
-        if let Value::Array(ref mut list) = item.value {
-            if index < list.len() {
-                list[index] = new_value;
-                return Some(Value::SimpleString("OK".to_string()));
-            } else {
-                return Some(Value::Error("ERR index out of range".to_string()));
+    match lock_and_get_item(&server.cache, &key, |item| {
+        if let RedisType::List = item.redis_type {
+            if let Value::Array(ref mut list) = item.value {
+                if index < list.len() {
+                    list[index] = new_value;
+                    return Some(Value::SimpleString("OK".to_string()));
+                } else {
+                    return Some(Value::Error("ERR index out of range".to_string()));
+                }
             }
         }
+        Some(Value::Error(
+            "ERR operation against a key holding the wrong kind of value".to_string(),
+        ))
+    }) {
+        Ok(result) => result,
+        Err(err) => Some(err),
     }
-
-    Some(Value::Error(
-        "ERR operation against a key holding the wrong kind of value".to_string(),
-    ))
 }
