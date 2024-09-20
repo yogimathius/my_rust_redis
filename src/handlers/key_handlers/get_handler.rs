@@ -1,8 +1,7 @@
-use crate::{models::value::Value, server::Server, utilities::unpack_bulk_str};
+use crate::{models::value::Value, server::Server};
 use std::time::Instant;
 
-pub fn get_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
-    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+pub fn get_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
     let cache = server.cache.lock().unwrap();
     match cache.get(&key) {
         Some(value) => {

@@ -3,18 +3,8 @@ use crate::{
     server::Server,
     utilities::lock_and_get_item,
 };
-use std::sync::MutexGuard;
 
-pub fn lset_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
-    let key = match args.get(0) {
-        Some(Value::BulkString(s)) => s.clone(),
-        _ => {
-            return Some(Value::Error(
-                "ERR wrong number of arguments for 'lset' command".to_string(),
-            ))
-        }
-    };
-
+pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     let index = match args.get(1) {
         Some(Value::Integer(i)) => *i as usize,
         _ => return Some(Value::Error("ERR index is not an integer".to_string())),

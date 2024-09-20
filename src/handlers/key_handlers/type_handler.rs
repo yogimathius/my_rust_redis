@@ -3,15 +3,11 @@ use crate::{
     server::Server,
 };
 
-pub fn type_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
-    if let Some(Value::BulkString(key)) = args.get(0) {
-        let cache = server.cache.lock().unwrap();
-        if let Some(item) = cache.get(key) {
-            return Some(Value::SimpleString(item.redis_type.to_string()));
-        } else {
-            return Some(Value::SimpleString(RedisType::None.to_string()));
-        }
+pub fn type_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
+    let cache = server.cache.lock().unwrap();
+    if let Some(item) = cache.get(&key) {
+        return Some(Value::SimpleString(item.redis_type.to_string()));
+    } else {
+        return Some(Value::SimpleString(RedisType::None.to_string()));
     }
-
-    Some(Value::SimpleString(RedisType::None.to_string()))
 }

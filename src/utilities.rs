@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use bytes::BytesMut;
 
-use crate::models::redis_type::RedisType;
 use crate::models::value::Value;
 use crate::server::RedisItem;
 
