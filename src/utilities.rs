@@ -1,8 +1,11 @@
+use std::collections::HashMap;
 use std::fmt::Arguments;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use bytes::BytesMut;
 
+use crate::models::redis_type::RedisType;
 use crate::models::value::Value;
 use crate::server::RedisItem;
 
@@ -196,4 +199,19 @@ pub fn extract_args(args: Vec<Value>) -> (String, Option<String>, Option<String>
     let additional_args: Vec<Value> = iter.collect();
 
     (key, arg1, arg2, additional_args)
+}
+
+pub fn lock_and_get_item<'a, F, R>(
+    cache: &Arc<Mutex<HashMap<String, RedisItem>>>,
+    key: &str,
+    callback: F,
+) -> Result<R, Value>
+where
+    F: FnOnce(&mut RedisItem) -> R,
+{
+    let mut cache = cache.lock().unwrap();
+    match cache.get_mut(key) {
+        Some(item) => Ok(callback(item)),
+        None => Err(Value::Error("ERR no such key".to_string())),
+    }
 }
