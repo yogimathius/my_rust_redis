@@ -20,7 +20,7 @@
 ### List Commands
 
 - [x] `LLEN` – Get the length of a list
-- [ ] `LREM` – Remove elements from a list
+- [x] `LREM` – Remove elements from a list
 - [ ] `LINDEX` – Get an element from a list by its index
 - [ ] `LPOP/RPOP` – Remove and return the first/last element from a list
 - [ ] `LPUSH/RPUSH` – Prepend/Append an element to a list
