@@ -23,7 +23,7 @@
 - [x] `LREM` – Remove elements from a list
 - [ ] `LINDEX` – Get an element from a list by its index
 - [ ] `LPOP/RPOP` – Remove and return the first/last element from a list
-- [ ] `LPUSH/RPUSH` – Prepend/Append an element to a list
+- [x] `LPUSH/RPUSH` – Prepend/Append an element to a list
 - [x] `LSET` – Set the value of an element in a list by its index
 
 ### Hash Commands
