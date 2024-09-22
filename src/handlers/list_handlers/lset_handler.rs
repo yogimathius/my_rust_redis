@@ -4,6 +4,7 @@ use crate::{
     utilities::lock_and_get_item,
 };
 
+// TODO: handle creating a new key if key isn't found
 pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     let index = match args.get(1) {
         Some(Value::Integer(i)) => *i as usize,
