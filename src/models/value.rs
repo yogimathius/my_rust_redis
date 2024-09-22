@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     SimpleString(String),
     BulkString(String),
     Array(Vec<Value>),
+    Hash(HashMap<String, Value>),
     Integer(i64),
     Error(String),
     NullBulkString,
@@ -18,6 +21,14 @@ impl Value {
                 }
 
                 serialized
+            }
+            Value::Hash(hash) => {
+                let mut serialized = String::new();
+                for (key, value) in hash.clone() {
+                    serialized.push_str(&Value::BulkString(key).serialize());
+                    serialized.push_str(&value.serialize());
+                }
+                format!("*{}\r\n{}", hash.len() * 2, serialized)
             }
             Value::SimpleString(s) => format!("+{}\r\n", s),
             Value::BulkString(s) => format!("${}\r\n{}\r\n", s.chars().count(), s),
