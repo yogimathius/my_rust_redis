@@ -4,7 +4,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Instant;
 
-    use my_redis_server::handlers::{rpop_handler, rpush_handler};
+    use my_redis_server::handlers::rpop_handler;
     use my_redis_server::models::redis_type::RedisType;
     use my_redis_server::models::value::Value;
     use my_redis_server::server::{RedisItem, Role, Server};

@@ -21,7 +21,7 @@
 
 - [x] `LLEN` – Get the length of a list
 - [x] `LREM` – Remove elements from a list
-- [ ] `LINDEX` – Get an element from a list by its index
+- [x] `LINDEX` – Get an element from a list by its index
 - [x] `LPOP/RPOP` – Remove and return the first/last element from a list
 - [x] `LPUSH/RPUSH` – Prepend/Append an element to a list
 - [x] `LSET` – Set the value of an element in a list by its index

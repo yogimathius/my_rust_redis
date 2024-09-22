@@ -1,10 +1,35 @@
-use crate::{models::value::Value, server::Server};
+use crate::{models::value::Value, server::Server, utilities::lock_and_get_item};
 
-pub fn lindex_handler(_server: &mut Server, _key: String, _args: Vec<Value>) -> Option<Value> {
-    // Pseudocode:
-    // 1. Extract the key and index from args.
-    // 2. Lock the cache.
-    // 3. Retrieve the list associated with the key.
-    // 4. Return the element at the specified index as a BulkString.
-    Some(Value::SimpleString("OK".to_string()))
+pub fn lindex_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+    println!(
+        "lindex_handler called with key: {} and args: {:?}",
+        key, args
+    );
+
+    let index = match args.get(0) {
+        Some(Value::Integer(i)) => *i,
+        _ => return Some(Value::Error("ERR value is not an integer".to_string())),
+    };
+
+    match lock_and_get_item(&server.cache, &key, |item| {
+        if let Value::Array(ref list) = item.value {
+            if index < 0 {
+                let index = list.len() as i64 + index;
+                if index < 0 {
+                    return Some(Value::NullBulkString);
+                }
+                return Some(list[index as usize].clone());
+            }
+            if index as usize >= list.len() {
+                return Some(Value::NullBulkString);
+            }
+            return Some(list[index as usize].clone());
+        }
+        Some(Value::Error(
+            "ERR operation against a key holding the wrong kind of value".to_string(),
+        ))
+    }) {
+        Ok(result) => result,
+        Err(err) => Some(err),
+    }
 }
