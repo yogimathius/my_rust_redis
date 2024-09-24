@@ -5,8 +5,6 @@ use crate::{
 
 pub fn hlen_handler(server: &mut Server, key: String, _: Vec<Value>) -> Option<Value> {
     let mut cache = server.cache.lock().unwrap();
-    println!("Cache: {:?}", cache);
-    println!("Key: {:?}", key);
     match cache.get_mut(&key) {
         Some(item) => {
             println!("Item: {:?}", item);
