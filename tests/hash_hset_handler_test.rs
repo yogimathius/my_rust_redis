@@ -10,12 +10,21 @@ mod tests {
     use my_redis_server::server::{RedisItem, Role, Server};
 
     fn setup() -> Server {
-        Server {
+        let mut server = Server {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role: Role::Main,
             port: 6379,
             sync: false,
-        }
+        };
+
+        let args = vec![
+            Value::BulkString("field1".to_string()),
+            Value::BulkString("value1".to_string()),
+            Value::BulkString("field2".to_string()),
+            Value::BulkString("value2".to_string()),
+        ];
+        hset_handler(&mut server, "myhash".to_string(), args);
+        server
     }
 
     #[test]

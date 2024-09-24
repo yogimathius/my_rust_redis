@@ -30,7 +30,7 @@
 
 - [ ] `HGET` – Get the value of a hash field
 - [ ] `HEXISTS` – Check if a hash field exists
-- [ ] `HDEL` – Delete one or more hash fields
+- [x] `HDEL` – Delete one or more hash fields
 - [ ] `HGETALL` – Get all fields and values of a hash
 - [ ] `HKEYS` – Get all field names in a hash
 - [ ] `HLEN` – Get the number of fields in a hash

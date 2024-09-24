@@ -3,7 +3,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    use my_redis_server::handlers::{hdel_handler, hset_handler};
+    use my_redis_server::handlers::{hexists_handler, hset_handler};
     use my_redis_server::models::value::Value;
     use my_redis_server::server::{Role, Server};
     fn setup() -> Server {
@@ -22,12 +22,12 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(),  args);
+        hset_handler(&mut server, "key".to_string(), args);
         let args = vec![
             Value::BulkString("key".to_string()),
             Value::BulkString("10".to_string()),
         ];
-        let result = hdel_handler(&mut server, "key".to_string(),  args);
+        let result = hexists_handler(&mut server, "key".to_string(), args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
     }
 }
