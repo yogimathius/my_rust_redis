@@ -28,7 +28,7 @@
 
 ### Hash Commands
 
-- [ ] `HGET` – Get the value of a hash field
+- [x] `HGET` – Get the value of a hash field
 - [ ] `HEXISTS` – Check if a hash field exists
 - [x] `HDEL` – Delete one or more hash fields
 - [ ] `HGETALL` – Get all fields and values of a hash
