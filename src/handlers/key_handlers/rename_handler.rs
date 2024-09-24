@@ -1,12 +1,26 @@
-use crate::{log, models::value::Value, server::Server};
+use crate::{log, models::value::Value, server::Server, utilities::unpack_bulk_str};
 
-pub fn rename_handler(_server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+// Renames key to newkey. It returns an error when key does not exist. If newkey already exists it is overwritten, when this happens RENAME executes an implicit DEL operation, so if the deleted key contains a very big value it may cause high latency even if RENAME itself is usually a constant-time operation.
+
+pub fn rename_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!("rename_handler handler {:?}", args);
+    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
+    let new_key = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
 
-    // Pseudocode:
-    // 1. Extract old key and new key from args.
-    // 2. Lock the cache.
-    // 3. Rename the key in the cache.
-    // 4. Return OK if successful.
-    Some(Value::SimpleString("OK".to_string()))
+    let mut cache = server.cache.lock().unwrap();
+
+    if !cache.contains_key(&key) {
+        return Some(Value::Error("ERR no such key".to_string()));
+    }
+
+    if cache.contains_key(&new_key) {
+        cache.remove(&new_key);
+    }
+
+    if let Some(item) = cache.remove(&key) {
+        cache.insert(new_key, item);
+        Some(Value::SimpleString("OK".to_string()))
+    } else {
+        Some(Value::Error("ERR no such key".to_string()))
+    }
 }
