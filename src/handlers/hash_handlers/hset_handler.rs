@@ -1,6 +1,8 @@
+use std::{collections::HashMap, time::Instant};
+
 use crate::{
     models::{redis_type::RedisType, value::Value},
-    server::Server,
+    server::{RedisItem, Server},
 };
 
 pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
@@ -27,8 +29,11 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
                         match chunk {
                             [Value::BulkString(field), value] => {
                                 println!("Field: {:?}, Value: {:?}", field, value);
-                                hash.entry(field.to_string())
-                                    .or_insert_with(|| value.clone());
+                                let entry = hash.entry(field.to_string());
+                                println!("Entry: {:?}", entry);
+                                let inserted_value = hash.insert(field.to_string(), value.clone());
+                                println!("Entry after insert: {:?}", inserted_value);
+
                                 count += 1;
                                 Some(Value::BulkString("Ok".to_string()))
                             }
@@ -44,10 +49,24 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
                 "ERR operation against a key holding the wrong kind of value".to_string(),
             ))
         }
-        // TODO: handle creation of new hash if no key found
-        None => Some(Value::BulkString(
-            "TODO: handle creation of new hash if no key found".to_string(),
-        )),
+        None => {
+            let mut hash = HashMap::new();
+            let mut count = 0;
+            for chunk in args.chunks(2) {
+                if let [Value::BulkString(field), value] = chunk {
+                    hash.insert(field.to_string(), value.clone());
+                    count += 1;
+                }
+            }
+            let redis_item = RedisItem {
+                value: Value::Hash(hash),
+                created_at: Instant::now(),
+                expiration: None,
+                redis_type: RedisType::Hash,
+            };
+            cache.insert(key, redis_item);
+            Some(Value::Integer(count))
+        }
     }
     // 2. Lock the cache.
     // 3. Retrieve the hash associated with the key.
