@@ -1,10 +1,29 @@
-use crate::{models::value::Value, server::Server};
+use crate::{
+    models::{redis_type::RedisType, value::Value},
+    server::Server,
+};
 
-pub fn hlen_handler(_server: &mut Server, _key: String, _args: Vec<Value>) -> Option<Value> {
-    // Pseudocode:
-    // 1. Extract the key from args.
-    // 2. Lock the cache.
-    // 3. Retrieve the hash associated with the key.
-    // 4. Return the number of fields in the hash as an Integer.
-    Some(Value::SimpleString("OK".to_string()))
+pub fn hlen_handler(server: &mut Server, key: String, _: Vec<Value>) -> Option<Value> {
+    let mut cache = server.cache.lock().unwrap();
+    println!("Cache: {:?}", cache);
+    println!("Key: {:?}", key);
+    match cache.get_mut(&key) {
+        Some(item) => {
+            println!("Item: {:?}", item);
+            if let RedisType::Hash = item.redis_type {
+                if let Value::Hash(hash) = &item.value {
+                    Some(Value::Integer(hash.len() as i64))
+                } else {
+                    Some(Value::Error(
+                        "ERR operation against a key holding the wrong kind of value".to_string(),
+                    ))
+                }
+            } else {
+                Some(Value::Error(
+                    "ERR operation against a key holding the wrong kind of value".to_string(),
+                ))
+            }
+        }
+        None => Some(Value::Integer(0)),
+    }
 }
