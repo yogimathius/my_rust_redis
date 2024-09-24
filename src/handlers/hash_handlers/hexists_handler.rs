@@ -1,11 +1,32 @@
-use crate::{models::value::Value, server::Server};
+use crate::{
+    models::{redis_type::RedisType, value::Value},
+    server::Server,
+};
 
-pub fn hexists_handler(_server: &mut Server, _key: String, _args: Vec<Value>) -> Option<Value> {
-    // Pseudocode:
-    // 1. Extract the key and field from args.
-    // 2. Lock the cache.
-    // 3. Retrieve the hash associated with the key.
-    // 4. Check if the field exists in the hash.
-    // 5. Return 1 if the field exists, 0 otherwise.
-    Some(Value::SimpleString("OK".to_string()))
+pub fn hexists_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+    let cache = server.cache.lock().unwrap();
+    match cache.get(&key) {
+        Some(item) if item.redis_type == RedisType::Hash => match &item.value {
+            Value::Hash(hash) => match args.get(0) {
+                Some(Value::BulkString(field)) => {
+                    let entry = hash
+                        .get(field)
+                        .cloned()
+                        .map(|_| Some(Value::Integer(1)))
+                        .unwrap_or(Some(Value::Integer(0)));
+                    entry
+                }
+                _ => Some(Value::Error(
+                    "ERR arguments must contain a value for every field".to_string(),
+                )),
+            },
+            _ => Some(Value::Error(
+                "ERR operation against a key holding the wrong kind of value".to_string(),
+            )),
+        },
+        Some(_) => Some(Value::Error(
+            "ERR operation against a key holding the wrong kind of value".to_string(),
+        )),
+        None => None,
+    }
 }
