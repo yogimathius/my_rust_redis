@@ -34,6 +34,5 @@
 - [x] `HGETALL` – Get all fields and values of a hash
 - [x] `HKEYS` – Get all field names in a hash
 - [x] `HLEN` – Get the number of fields in a hash
-- [ ] `HMSET` – Set multiple fields in a hash
 - [x] `HSET` – Set a field in a hash
 - [x] `HVALS` – Get all values in a hash
