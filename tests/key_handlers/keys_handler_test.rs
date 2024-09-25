@@ -3,12 +3,12 @@
 //     use std::collections::HashMap;
 //     use std::sync::{Arc, Mutex};
 
-//     use my_redis_server::handlers::{
+//     use redis_starter_rust::handlers::{
 //         del_handler, expire_handler, get_handler, rename_handler, set_handler, type_handler,
 //         unlink_handler,
 //     };
-//     use my_redis_server::models::value::Value;
-//     use my_redis_server::server::{Role, Server};
+//     use redis_starter_rust::models::value::Value;
+//     use redis_starter_rust::server::{Role, Server};
 
 //     fn setup() -> Server {
 //         Server {

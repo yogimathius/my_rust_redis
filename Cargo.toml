@@ -6,7 +6,7 @@
 #
 # DON'T EDIT THIS!
 [package]
-name = "my_redis_server"
+name = "redis-starter-rust"
 version = "0.1.0"
 edition = "2021"
 

@@ -3,9 +3,9 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    use my_redis_server::handlers::{hexists_handler, hset_handler};
-    use my_redis_server::models::value::Value;
-    use my_redis_server::server::{Role, Server};
+    use redis_starter_rust::handlers::{hexists_handler, hset_handler};
+    use redis_starter_rust::models::value::Value;
+    use redis_starter_rust::server::{Role, Server};
 
     fn setup() -> Server {
         Server {
@@ -64,11 +64,11 @@ mod tests {
             let mut cache = server.cache.lock().unwrap();
             cache.insert(
                 "key".to_string(),
-                my_redis_server::server::RedisItem {
+                redis_starter_rust::server::RedisItem {
                     value: Value::BulkString("some string".to_string()),
                     created_at: std::time::Instant::now(),
                     expiration: None,
-                    redis_type: my_redis_server::models::redis_type::RedisType::String,
+                    redis_type: redis_starter_rust::models::redis_type::RedisType::String,
                 },
             );
         }

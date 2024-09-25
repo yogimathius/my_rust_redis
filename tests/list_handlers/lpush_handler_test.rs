@@ -4,10 +4,10 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::Instant;
 
-    use my_redis_server::handlers::lpush_handler;
-    use my_redis_server::models::redis_type::RedisType;
-    use my_redis_server::models::value::Value;
-    use my_redis_server::server::{RedisItem, Role, Server};
+    use redis_starter_rust::handlers::lpush_handler;
+    use redis_starter_rust::models::redis_type::RedisType;
+    use redis_starter_rust::models::value::Value;
+    use redis_starter_rust::server::{RedisItem, Role, Server};
 
     fn setup() -> Server {
         Server {

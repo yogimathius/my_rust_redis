@@ -1,5 +1,5 @@
 use clap::Parser;
-use my_redis_server::{models::args::Args, server::Server};
+use redis_starter_rust::{models::args::Args, server::Server};
 
 #[tokio::main]
 async fn main() {

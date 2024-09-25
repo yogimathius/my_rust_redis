@@ -3,9 +3,9 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    use my_redis_server::handlers::{lpop_handler, rpush_handler};
-    use my_redis_server::models::value::Value;
-    use my_redis_server::server::{Role, Server};
+    use redis_starter_rust::handlers::{lpop_handler, rpush_handler};
+    use redis_starter_rust::models::value::Value;
+    use redis_starter_rust::server::{Role, Server};
 
     fn setup() -> Server {
         Server {

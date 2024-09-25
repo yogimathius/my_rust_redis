@@ -24,7 +24,9 @@ pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
         Value::Array(a) => {
             let command = unpack_bulk_str(a.first().unwrap().clone()).unwrap();
             let mut iter = a.into_iter();
-
+            if command == "PING" {
+                return Ok((command, "".to_string(), vec![]));
+            }
             iter.next();
             let key = unpack_bulk_str(iter.next().ok_or_else(|| anyhow::anyhow!("Missing key"))?)?;
 
