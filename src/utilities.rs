@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use lazy_static::lazy_static;
+
+use std::collections::{HashMap, HashSet};
 use std::fmt::Arguments;
 use std::sync::{Arc, Mutex};
 
@@ -19,12 +21,23 @@ macro_rules! log {
     };
 }
 
+lazy_static! {
+    static ref NO_ARG_COMMANDS: HashSet<&'static str> = {
+        let mut m = HashSet::new();
+        m.insert("PING");
+        m.insert("INFO");
+        m.insert("PSYNC");
+        m.insert("FLUSHALL");
+        m
+    };
+}
+
 pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
     match value {
         Value::Array(a) => {
             let command = unpack_bulk_str(a.first().unwrap().clone()).unwrap();
             let mut iter = a.into_iter();
-            if command == "PING" {
+            if NO_ARG_COMMANDS.contains(command.as_str()) {
                 return Ok((command, "".to_string(), vec![]));
             }
             iter.next();

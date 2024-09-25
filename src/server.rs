@@ -23,7 +23,7 @@ pub struct RedisItem {
     pub redis_type: RedisType,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Server {
     pub cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     pub role: Role,
@@ -33,6 +33,7 @@ pub struct Server {
 
 impl Server {
     pub fn new(args: Args) -> Self {
+        println!("Args: {:?}", args);
         let role = match args.replicaof {
             Some(vec) => {
                 let mut iter = vec.into_iter();
@@ -40,11 +41,12 @@ impl Server {
                 let port = iter.next().unwrap();
                 Role::Slave {
                     host: addr,
-                    port: port.parse::<u16>().unwrap(),
+                    port: args.port,
                 }
             }
             None => Role::Main,
         };
+        println!("Role: {:?}", role);
         Self {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role,
@@ -57,7 +59,7 @@ impl Server {
         match args.replicaof {
             Some(vec) => {
                 let mut replica = ReplicaClient::new(vec).await.unwrap();
-
+                println!("self: {:?}", self);
                 replica.send_ping(&self).await.unwrap();
 
                 while replica.handshakes < 4 {
@@ -109,6 +111,9 @@ impl Server {
     }
 
     pub fn send_psync(&self) -> Option<Value> {
+        println!("Syncing with master");
+        println!("self.role {:?}", self.role);
+
         match &self.role {
             Role::Main => None,
             Role::Slave { host: _, port: _ } => {

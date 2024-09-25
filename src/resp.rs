@@ -29,8 +29,12 @@ impl RespHandler {
 
             let response: Option<Value> = if let Some(value) = value {
                 let (command, key, args) = extract_command(value).unwrap();
-
-                if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+                println!("Command: {:?}", command);
+                if command == "FULLRESYNC" {
+                    server.sync = true;
+                    Some(Value::SimpleString("OK".to_string()))
+                } else if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+                    println!("Command function found ");
                     command_function(&mut server, key, args)
                 } else {
                     Value::SimpleString("Unknown command".to_string());
@@ -39,8 +43,15 @@ impl RespHandler {
             } else {
                 Some(Value::SimpleString("Unknown command".to_string()))
             };
-            self.write_value(response.unwrap()).await.unwrap();
+            println!("Response: {:?}", response);
+            if let Some(response) = response {
+                self.write_value(response).await.unwrap();
+            } else {
+                println!("No response to write, as the server is in Master role.");
+                // Handle the None case appropriately, e.g., return an error or continue
+            }
             if server.sync {
+                println!("server synced");
                 let mut file = File::open("dump.rdb").unwrap();
                 let mut buffer = Vec::new();
                 file.read_to_end(&mut buffer).unwrap();
