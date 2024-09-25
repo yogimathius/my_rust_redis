@@ -4,7 +4,6 @@ use crate::{log, models::value::Value, server::Server, utilities::unpack_bulk_st
 
 pub fn rename_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!("rename_handler handler {:?}", args);
-    let key = unpack_bulk_str(args.first().unwrap().clone()).unwrap();
     let new_key = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
 
     let mut cache = server.cache.lock().unwrap();

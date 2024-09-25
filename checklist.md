@@ -15,7 +15,7 @@
 - [x] `DEL` – Delete a key
 - [x] `UNLINK` – Asynchronously delete a key
 - [x] `EXPIRE` – Set a timeout on a key
-- [ ] `RENAME` – Rename a key
+- [x] `RENAME` – Rename a key
 
 ### List Commands
 
