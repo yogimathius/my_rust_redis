@@ -7,8 +7,8 @@ pub fn ping_handler(_: &mut Server, _key: String, _: Vec<Value>) -> Option<Value
     Some(Value::SimpleString("PONG".to_string()))
 }
 
-pub fn echo_handler(_: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
-    Some(args.first().unwrap().clone())
+pub fn echo_handler(_: &mut Server, arg: String, _: Vec<Value>) -> Option<Value> {
+    Some(Value::BulkString(arg))
 }
 
 pub fn flushall_handler(server: &mut Server, _key: String, _: Vec<Value>) -> Option<Value> {
