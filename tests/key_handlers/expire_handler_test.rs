@@ -4,6 +4,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use redis_starter_rust::handlers::{expire_handler, set_handler};
+    use redis_starter_rust::log;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::{Role, Server};
 
@@ -25,7 +26,7 @@ mod tests {
         ];
         set_handler(&mut server, "key".to_string(), args);
         let args = vec![Value::BulkString("key".to_string()), Value::Integer(10)];
-        println!("args {:?}", args);
+        log!("args {:?}", args);
         let result = expire_handler(&mut server, "key".to_string(), args.clone());
         assert_eq!(result, Some(Value::Integer(1)));
     }
@@ -43,7 +44,7 @@ mod tests {
             Value::Integer(10),
             Value::BulkString("NX".to_string()),
         ];
-        println!("args {:?}", args);
+        log!("args {:?}", args);
         let result = expire_handler(&mut server, "key".to_string(), args.clone());
         assert_eq!(result, Some(Value::Integer(1)));
     }
@@ -63,7 +64,7 @@ mod tests {
             Value::Integer(10),
             Value::BulkString("XX".to_string()),
         ];
-        println!("args {:?}", args);
+        log!("args {:?}", args);
         let result = expire_handler(&mut server, "key".to_string(), args.clone());
         assert_eq!(result, Some(Value::Integer(1)));
     }
@@ -84,7 +85,7 @@ mod tests {
             Value::Integer(10),
             Value::BulkString("GT".to_string()),
         ];
-        println!("args {:?}", args);
+        log!("args {:?}", args);
         let result = expire_handler(&mut server, "key".to_string(), args.clone());
         assert_eq!(result, Some(Value::Integer(1)));
     }
@@ -105,7 +106,7 @@ mod tests {
             Value::Integer(10),
             Value::BulkString("LT".to_string()),
         ];
-        println!("args {:?}", args);
+        log!("args {:?}", args);
         let result = expire_handler(&mut server, "key".to_string(), args.clone());
         assert_eq!(result, Some(Value::Integer(1)));
 

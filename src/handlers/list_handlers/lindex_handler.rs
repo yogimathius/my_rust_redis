@@ -1,9 +1,10 @@
-use crate::{models::value::Value, server::Server, utilities::lock_and_get_item};
+use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
 
 pub fn lindex_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
-    println!(
+    log!(
         "lindex_handler called with key: {} and args: {:?}",
-        key, args
+        key,
+        args,
     );
 
     let index = match args.get(0) {

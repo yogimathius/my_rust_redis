@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Instant};
 
 use crate::{
+    log,
     models::{redis_type::RedisType, value::Value},
     server::{RedisItem, Server},
 };
@@ -28,11 +29,11 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
                     for chunk in args.chunks(2) {
                         match chunk {
                             [Value::BulkString(field), value] => {
-                                println!("Field: {:?}, Value: {:?}", field, value);
+                                log!("Field: {:?}, Value: {:?}", field, value);
                                 let entry = hash.entry(field.to_string());
-                                println!("Entry: {:?}", entry);
+                                log!("Entry: {:?}", entry);
                                 let inserted_value = hash.insert(field.to_string(), value.clone());
-                                println!("Entry after insert: {:?}", inserted_value);
+                                log!("Entry after insert: {:?}", inserted_value);
 
                                 count += 1;
                                 Some(Value::BulkString("Ok".to_string()))

@@ -1,7 +1,7 @@
-use crate::{models::value::Value, server::Server};
+use crate::{log, models::value::Value, server::Server};
 
 pub fn keys_handler(_server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
-    println!("keys_handler handler {:?}", args);
+    log!("keys_handler handler {:?}", args);
     // Pseudocode:
     // 1. Extract pattern from args.
     // 2. Lock the cache.

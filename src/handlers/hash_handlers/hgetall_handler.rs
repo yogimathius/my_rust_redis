@@ -1,4 +1,5 @@
 use crate::{
+    log,
     models::{redis_type::RedisType, value::Value},
     server::Server,
 };
@@ -7,7 +8,7 @@ pub fn hgetall_handler(server: &mut Server, key: String, _: Vec<Value>) -> Optio
     let mut cache = server.cache.lock().unwrap();
     match cache.get_mut(&key) {
         Some(item) => {
-            println!("Item: {:?}", item);
+            log!("Item: {:?}", item);
             if let RedisType::Hash = item.redis_type {
                 if let Value::Hash(hash) = &item.value {
                     let mut sorted_keys: Vec<_> = hash.keys().cloned().collect();

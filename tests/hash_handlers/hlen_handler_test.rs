@@ -4,6 +4,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use redis_starter_rust::handlers::{hlen_handler, hset_handler};
+    use redis_starter_rust::log;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::{Role, Server};
 
@@ -26,7 +27,7 @@ mod tests {
             Value::BulkString("value2".to_string()),
         ];
         let result = hset_handler(&mut server, "key".to_string(), args);
-        println!("{:?}", result);
+        log!("{:?}", result);
         let result = hlen_handler(&mut server, "key".to_string(), vec![]);
         assert_eq!(result, Some(Value::Integer(2)));
     }

@@ -1,4 +1,5 @@
 use crate::{
+    log,
     models::{redis_type::RedisType, value::Value},
     server::Server,
 };
@@ -7,7 +8,7 @@ pub fn hvals_handler(server: &mut Server, key: String, _: Vec<Value>) -> Option<
     let mut cache = server.cache.lock().unwrap();
     match cache.get_mut(&key) {
         Some(item) => {
-            println!("Item: {:?}", item);
+            log!("Item: {:?}", item);
             if let RedisType::Hash = item.redis_type {
                 if let Value::Hash(hash) = &item.value {
                     let mut values: Vec<_> = hash.values().cloned().collect();
