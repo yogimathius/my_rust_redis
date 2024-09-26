@@ -33,12 +33,11 @@ pub struct Server {
 
 impl Server {
     pub fn new(args: Args) -> Self {
-        println!("Args: {:?}", args);
         let role = match args.replicaof {
             Some(vec) => {
                 let mut iter = vec.into_iter();
                 let addr = iter.next().unwrap();
-                let port = iter.next().unwrap();
+                let _ = iter.next().unwrap();
                 Role::Slave {
                     host: addr,
                     port: args.port,
@@ -46,7 +45,6 @@ impl Server {
             }
             None => Role::Main,
         };
-        println!("Role: {:?}", role);
         Self {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role,
@@ -59,7 +57,6 @@ impl Server {
         match args.replicaof {
             Some(vec) => {
                 let mut replica = ReplicaClient::new(vec).await.unwrap();
-                println!("self: {:?}", self);
                 replica.send_ping(&self).await.unwrap();
 
                 while replica.handshakes < 4 {
@@ -69,7 +66,7 @@ impl Server {
                             replica.handle_response(&response, &self).await.unwrap();
                         }
                         Err(e) => {
-                            eprintln!("Failed to read from stream: {}", e);
+                            log!("Failed to read from stream: {}", e);
                         }
                     }
                 }
@@ -111,8 +108,8 @@ impl Server {
     }
 
     pub fn send_psync(&self) -> Option<Value> {
-        println!("Syncing with master");
-        println!("self.role {:?}", self.role);
+        log!("Syncing with master");
+        log!("self.role {:?}", self.role);
 
         match &self.role {
             Role::Main => None,
