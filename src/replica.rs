@@ -79,8 +79,8 @@ impl ReplicaClient {
                     self.send_replconf(server).await?;
                 }
             }
-            "FULLRESYNC" => {
-                self.handshakes = 3;
+            _ if response.starts_with("+FULLRESYNC") => {
+                log!("ready for rdbsync");
             }
             _ => {
                 log!("Failed to establish replication: {}", response);
