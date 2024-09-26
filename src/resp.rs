@@ -1,11 +1,11 @@
 use anyhow::Result;
 use bytes::BytesMut;
-use std::fs::File;
-use std::io::Read;
+use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::commands::COMMAND_HANDLERS;
+use crate::log;
 use crate::models::value::Value;
 use crate::server::Server;
 use crate::utilities::{extract_command, parse_message};
@@ -29,36 +29,35 @@ impl RespHandler {
 
             let response: Option<Value> = if let Some(value) = value {
                 let (command, key, args) = extract_command(value).unwrap();
-                println!("Command: {:?}", command);
                 if command == "FULLRESYNC" {
                     server.sync = true;
                     Some(Value::SimpleString("OK".to_string()))
                 } else if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
-                    println!("Command function found ");
                     command_function(&mut server, key, args)
                 } else {
                     Value::SimpleString("Unknown command".to_string());
                     std::process::exit(1);
                 }
             } else {
-                Some(Value::SimpleString("Unknown command".to_string()))
+                None
             };
-            println!("Response: {:?}", response);
             if let Some(response) = response {
                 self.write_value(response).await.unwrap();
-            } else {
-                println!("No response to write, as the server is in Master role.");
-                // Handle the None case appropriately, e.g., return an error or continue
             }
             if server.sync {
-                println!("server synced");
-                let mut file = File::open("dump.rdb").unwrap();
-                let mut buffer = Vec::new();
-                file.read_to_end(&mut buffer).unwrap();
+                log!("server synced");
 
-                self.write_value(Value::BulkString(String::from_utf8(buffer).unwrap()))
+                let mut rdb_buf: Vec<u8> = vec![];
+                let _ = File::open("rdb")
                     .await
-                    .unwrap();
+                    .unwrap()
+                    .read_to_end(&mut rdb_buf)
+                    .await;
+                log!("Read {} bytes from dump.rdb", rdb_buf.len());
+                let contents = hex::decode(&rdb_buf).unwrap();
+                let header = format!("${}\r\n", contents.len());
+                self.stream.write_all(header.as_bytes()).await?;
+                self.stream.write_all(&contents).await?;
 
                 server.sync = false;
             }
