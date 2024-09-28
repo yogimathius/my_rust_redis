@@ -1,4 +1,6 @@
+use std::sync::Arc;
 use std::{collections::HashMap, time::Instant};
+use tokio::sync::Mutex;
 
 use crate::{
     log,
@@ -6,7 +8,13 @@ use crate::{
     server::{RedisItem, Server},
 };
 
-pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn hset_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     for chunk in args.chunks(2) {
         match chunk {
             [Value::BulkString(_), Value::BulkString(_)] => continue,
@@ -20,7 +28,7 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
         }
     }
     // TODO: check for other value types for the value
-    let mut cache = server.cache.lock().unwrap();
+    let mut cache = server.cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let RedisType::Hash = item.redis_type {

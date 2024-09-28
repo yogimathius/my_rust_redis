@@ -1,17 +1,25 @@
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::Mutex;
 
 use crate::{
     models::{redis_type::RedisType, value::Value},
     server::{RedisItem, Server},
 };
 
-pub fn lpush_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn lpush_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     let new_item = match args.get(0) {
         Some(Value::BulkString(v)) => v.clone(),
         _ => return Some(Value::Error("ERR value is not a bulk string".to_string())),
     };
 
-    let mut cache = server.cache.lock().unwrap();
+    let mut cache = server.cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let Value::Array(ref mut list) = item.value {

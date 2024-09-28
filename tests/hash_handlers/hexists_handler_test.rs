@@ -1,60 +1,64 @@
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::setup::setup_server;
     use redis_starter_rust::handlers::{hexists_handler, hset_handler};
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::Server;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
+    async fn setup() -> Arc<Mutex<Server>> {
         return setup_server();
     }
 
-    #[test]
-    fn test_hexists_existing_field() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hexists_existing_field() {
+        let server = setup().await;
         let args = vec![
             Value::BulkString("field".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(), args);
+        hset_handler(server.clone(), "key".to_string(), args).await;
         let args = vec![Value::BulkString("field".to_string())];
-        let result = hexists_handler(&mut server, "key".to_string(), args);
+        let result = hexists_handler(server, "key".to_string(), args).await;
         assert_eq!(result, Some(Value::Integer(1)));
     }
 
-    #[test]
-    fn test_hexists_non_existent_field() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hexists_non_existent_field() {
+        let server = setup().await;
         let args = vec![
             Value::BulkString("field".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(), args);
+        hset_handler(server.clone(), "key".to_string(), args).await;
         let args = vec![Value::BulkString("non_existent_field".to_string())];
-        let result = hexists_handler(&mut server, "key".to_string(), args);
+        let result = hexists_handler(server, "key".to_string(), args).await;
         assert_eq!(result, Some(Value::Integer(0)));
     }
 
-    #[test]
-    fn test_hexists_non_existent_key() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hexists_non_existent_key() {
+        let server = setup().await;
         let args = vec![Value::BulkString("field".to_string())];
-        let result = hexists_handler(&mut server, "non_existent_key".to_string(), args);
+        let result = hexists_handler(server, "non_existent_key".to_string(), args).await;
         assert_eq!(result, None);
     }
 
-    #[test]
-    fn test_hexists_non_hash_type_key() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hexists_non_hash_type_key() {
+        let server = setup().await;
         let args = vec![
             Value::BulkString("field".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(), args);
+        hset_handler(server.clone(), "key".to_string(), args).await;
 
         // Simulate setting the key to a different type
         {
-            let mut cache = server.cache.lock().unwrap();
+            let server_locked = server.lock().await;
+            let mut cache = server_locked.cache.lock().await;
             cache.insert(
                 "key".to_string(),
                 redis_starter_rust::server::RedisItem {
@@ -67,7 +71,7 @@ mod tests {
         }
 
         let args = vec![Value::BulkString("field".to_string())];
-        let result = hexists_handler(&mut server, "key".to_string(), args);
+        let result = hexists_handler(server, "key".to_string(), args).await;
         assert_eq!(
             result,
             Some(Value::Error(
@@ -76,16 +80,16 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_hexists_invalid_arguments() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hexists_invalid_arguments() {
+        let server = setup().await;
         let args = vec![
             Value::BulkString("field".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(), args);
+        hset_handler(server.clone(), "key".to_string(), args).await;
         let args = vec![Value::Integer(10)];
-        let result = hexists_handler(&mut server, "key".to_string(), args);
+        let result = hexists_handler(server, "key".to_string(), args).await;
         assert_eq!(
             result,
             Some(Value::Error(

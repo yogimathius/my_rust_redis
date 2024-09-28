@@ -3,9 +3,17 @@ use crate::{
     models::{redis_type::RedisType, value::Value},
     server::Server,
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn hgetall_handler(server: &mut Server, key: String, _: Vec<Value>) -> Option<Value> {
-    let mut cache = server.cache.lock().unwrap();
+pub async fn hgetall_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    _: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
+    let mut cache = server.cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             log!("Item: {:?}", item);

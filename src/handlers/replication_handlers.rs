@@ -1,18 +1,25 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use crate::{
+    log,
     models::value::Value,
     server::{Role, Server},
 };
 use uuid::Uuid;
 
-pub fn replconf_handler(_: &mut Server, _: String, _: Vec<Value>) -> Option<Value> {
+pub fn replconf_handler(_: Arc<Mutex<Server>>, _: String, _: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn psync_handler(server: &mut Server) -> Option<Value> {
+pub async fn psync_handler(server: Arc<Mutex<Server>>, _: String, _: Vec<Value>) -> Option<Value> {
+    let mut server = server.lock().await;
+
     match &server.role {
         Role::Main => {
+            log!("server synced");
             server.sync = true;
-
+            log!("server.sync: {}", server.sync);
             let repl_id = generate_repl_id();
             Some(Value::SimpleString(format!("FULLRESYNC {} 0", repl_id)))
         }

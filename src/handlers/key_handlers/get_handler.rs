@@ -1,8 +1,16 @@
 use crate::{models::value::Value, server::Server};
+use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::Mutex;
 
-pub fn get_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
-    let cache = server.cache.lock().unwrap();
+pub async fn get_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    _args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
+    let cache = server.cache.lock().await;
     println!("key {:?}", key);
     match cache.get(&key) {
         Some(value) => {

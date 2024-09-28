@@ -3,9 +3,17 @@ use crate::{
     server::Server,
     utilities::lock_and_get_item,
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 // TODO: handle creating a new key if key isn't found
-pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn lset_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     let index = match args.get(1) {
         Some(Value::Integer(i)) => *i as usize,
         _ => return Some(Value::Error("ERR index is not an integer".to_string())),
@@ -34,7 +42,9 @@ pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
         Some(Value::Error(
             "ERR operation against a key holding the wrong kind of value".to_string(),
         ))
-    }) {
+    })
+    .await
+    {
         Ok(result) => result,
         Err(err) => Some(err),
     }

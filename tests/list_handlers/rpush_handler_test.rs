@@ -8,14 +8,16 @@ mod tests {
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::{RedisItem, Server};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
-        return setup_server();
+    async fn setup() -> Arc<Mutex<Server>> {
+        setup_server()
     }
 
-    #[test]
-    fn test_rpush_handler_existing_list() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_rpush_handler_existing_list() {
+        let server = setup().await;
         let key = "key".to_string();
         let initial_list = vec![Value::BulkString("initial".to_string())];
         let redis_item = RedisItem {
@@ -25,13 +27,20 @@ mod tests {
             redis_type: RedisType::List,
         };
 
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
 
         let args = vec![Value::BulkString("new_item".to_string())];
-        let result = rpush_handler(&mut server, key.clone(), args);
+        let result = rpush_handler(server.clone(), key.clone(), args).await;
         assert_eq!(result, Some(Value::Integer(2)));
 
-        let cache = server.cache.lock().unwrap();
+        let server_locked = server.lock().await;
+        let cache = server_locked.cache.lock().await;
         if let Some(item) = cache.get(&key) {
             if let Value::Array(list) = &item.value {
                 assert_eq!(list.len(), 2);
@@ -45,15 +54,16 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rpush_handler_new_list() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_rpush_handler_new_list() {
+        let server = setup().await;
         let key = "key".to_string();
         let args = vec![Value::BulkString("new_item".to_string())];
-        let result = rpush_handler(&mut server, key.clone(), args);
+        let result = rpush_handler(server.clone(), key.clone(), args).await;
         assert_eq!(result, Some(Value::Integer(1)));
 
-        let cache = server.cache.lock().unwrap();
+        let server_locked = server.lock().await;
+        let cache = server_locked.cache.lock().await;
         if let Some(item) = cache.get(&key) {
             if let Value::Array(list) = &item.value {
                 assert_eq!(list.len(), 1);
@@ -66,21 +76,21 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_rpush_handler_invalid_value_type() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_rpush_handler_invalid_value_type() {
+        let server = setup().await;
         let key = "key".to_string();
         let args = vec![Value::Integer(123)];
-        let result = rpush_handler(&mut server, key.clone(), args);
+        let result = rpush_handler(server.clone(), key.clone(), args).await;
         assert_eq!(
             result,
             Some(Value::Error("ERR value is not a bulk string".to_string()))
         );
     }
 
-    #[test]
-    fn test_rpush_handler_non_list_value() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_rpush_handler_non_list_value() {
+        let server = setup().await;
         let key = "key".to_string();
         let redis_item = RedisItem {
             value: Value::Integer(123),
@@ -89,10 +99,16 @@ mod tests {
             redis_type: RedisType::String,
         };
 
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
 
         let args = vec![Value::BulkString("new_item".to_string())];
-        let result = rpush_handler(&mut server, key.clone(), args);
+        let result = rpush_handler(server.clone(), key.clone(), args).await;
         assert_eq!(
             result,
             Some(Value::Error(

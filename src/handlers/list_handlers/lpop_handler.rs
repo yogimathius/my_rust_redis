@@ -1,7 +1,15 @@
 use crate::{models::value::Value, server::Server};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn lpop_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
-    let mut cache = server.cache.lock().unwrap();
+pub async fn lpop_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    _args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
+    let mut cache = server.cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let Value::Array(ref mut list) = item.value {

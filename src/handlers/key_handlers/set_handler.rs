@@ -4,16 +4,25 @@ use crate::{
     server::{RedisItem, Server},
     utilities::unpack_bulk_str,
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use std::time::Instant;
 
-pub fn set_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn set_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     println!("args {:?}", args);
     let value = Value::BulkString(unpack_bulk_str(args.get(0).unwrap().clone()).unwrap());
     let option = match args.get(1) {
         Some(value) => unpack_bulk_str(value.clone()),
         None => unpack_bulk_str(Value::BulkString("".to_string())),
     };
-    let mut cache = server.cache.lock().unwrap();
+    let mut cache = server.cache.lock().await;
 
     let expiration: Option<i64> = match option.unwrap().as_str() {
         "EX" | "px" => {

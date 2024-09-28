@@ -1,7 +1,14 @@
 use crate::{models::value::Value, server::Server};
-use std::{sync::Arc, thread};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn unlink_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn unlink_handler(
+    server: Arc<Mutex<Server>>,
+    _key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     let keys: Vec<String> = args
         .into_iter()
         .filter_map(|arg| match arg {
@@ -10,8 +17,8 @@ pub fn unlink_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Op
         })
         .collect();
     let cache = Arc::clone(&server.cache);
-    thread::spawn(move || {
-        let mut cache = cache.lock().unwrap();
+    tokio::spawn(async move {
+        let mut cache = cache.lock().await;
 
         for key in keys {
             cache.remove(&key);

@@ -1,53 +1,55 @@
 #[cfg(test)]
 mod tests {
- 
 
     use crate::setup::setup_server;
     use redis_starter_rust::handlers::{hlen_handler, hset_handler};
     use redis_starter_rust::log;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::Server;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
-        return setup_server();
+    fn setup() -> Arc<Mutex<Server>> {
+        setup_server()
     }
 
-    #[test]
-    fn test_hlen_multiple_fields() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hlen_multiple_fields() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::BulkString("value1".to_string()),
             Value::BulkString("field2".to_string()),
             Value::BulkString("value2".to_string()),
         ];
-        let result = hset_handler(&mut server, "key".to_string(), args);
+        let result = hset_handler(server.clone(), "key".to_string(), args).await;
         log!("{:?}", result);
-        let result = hlen_handler(&mut server, "key".to_string(), vec![]);
+        let result = hlen_handler(server.clone(), "key".to_string(), vec![]).await;
         assert_eq!(result, Some(Value::Integer(2)));
     }
 
-    #[test]
-    fn test_hlen_empty_hash() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hlen_empty_hash() {
+        let server = setup();
         let args = vec![];
-        hset_handler(&mut server, "key".to_string(), args);
-        let result = hlen_handler(&mut server, "key".to_string(), vec![]);
+        hset_handler(server.clone(), "key".to_string(), args).await;
+        let result = hlen_handler(server.clone(), "key".to_string(), vec![]).await;
         assert_eq!(result, Some(Value::Integer(0)));
     }
 
-    #[test]
-    fn test_hlen_non_existent_key() {
-        let mut server = setup();
-        let result = hlen_handler(&mut server, "non_existent_key".to_string(), vec![]);
+    #[tokio::test]
+    async fn test_hlen_non_existent_key() {
+        let server = setup();
+        let result = hlen_handler(server.clone(), "non_existent_key".to_string(), vec![]).await;
         assert_eq!(result, Some(Value::Integer(0)));
     }
 
-    #[test]
-    fn test_hlen_non_hash_type_key() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hlen_non_hash_type_key() {
+        let server = setup();
         {
-            let mut cache = server.cache.lock().unwrap();
+            let server_locked = server.lock().await;
+            let mut cache = server_locked.cache.lock().await;
             cache.insert(
                 "key".to_string(),
                 redis_starter_rust::server::RedisItem {
@@ -58,7 +60,7 @@ mod tests {
                 },
             );
         }
-        let result = hlen_handler(&mut server, "key".to_string(), vec![]);
+        let result = hlen_handler(server.clone(), "key".to_string(), vec![]).await;
         assert_eq!(
             result,
             Some(Value::Error(

@@ -1,28 +1,29 @@
 #[cfg(test)]
 mod tests {
- 
 
     use crate::setup::setup_server;
     use redis_starter_rust::handlers::{hkeys_handler, hset_handler};
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::Server;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
-        return setup_server();
+    fn setup() -> Arc<Mutex<Server>> {
+        setup_server()
     }
 
-    #[test]
-    fn test_hkeys_handler() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hkeys_handler() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::BulkString("value1".to_string()),
             Value::BulkString("field2".to_string()),
             Value::BulkString("value2".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(), args);
-        let result = hkeys_handler(&mut server, "key".to_string(), vec![]);
+        hset_handler(server.clone(), "key".to_string(), args).await;
+        let result = hkeys_handler(server.clone(), "key".to_string(), vec![]).await;
         assert_eq!(
             result,
             Some(Value::Array(vec![
@@ -32,27 +33,28 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_hkeys_empty_hash() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hkeys_empty_hash() {
+        let server = setup();
         let args = vec![];
-        hset_handler(&mut server, "key".to_string(), args);
-        let result = hkeys_handler(&mut server, "key".to_string(), vec![]);
+        hset_handler(server.clone(), "key".to_string(), args).await;
+        let result = hkeys_handler(server.clone(), "key".to_string(), vec![]).await;
         assert_eq!(result, Some(Value::Array(vec![])));
     }
 
-    #[test]
-    fn test_hkeys_non_existent_key() {
-        let mut server = setup();
-        let result = hkeys_handler(&mut server, "non_existent_key".to_string(), vec![]);
+    #[tokio::test]
+    async fn test_hkeys_non_existent_key() {
+        let server = setup();
+        let result = hkeys_handler(server.clone(), "non_existent_key".to_string(), vec![]).await;
         assert_eq!(result, Some(Value::Array(vec![])));
     }
 
-    #[test]
-    fn test_hkeys_non_hash_type_key() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hkeys_non_hash_type_key() {
+        let server = setup();
         {
-            let mut cache = server.cache.lock().unwrap();
+            let server_locked = server.lock().await;
+            let mut cache = server_locked.cache.lock().await;
             cache.insert(
                 "key".to_string(),
                 redis_starter_rust::server::RedisItem {
@@ -63,7 +65,7 @@ mod tests {
                 },
             );
         }
-        let result = hkeys_handler(&mut server, "key".to_string(), vec![]);
+        let result = hkeys_handler(server.clone(), "key".to_string(), vec![]).await;
         assert_eq!(
             result,
             Some(Value::Error(
@@ -72,15 +74,20 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_hkeys_invalid_arguments() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hkeys_invalid_arguments() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        hset_handler(&mut server, "key".to_string(), args);
-        let result = hkeys_handler(&mut server, "bad_key".to_string(), vec![Value::Integer(10)]);
+        hset_handler(server.clone(), "key".to_string(), args).await;
+        let result = hkeys_handler(
+            server.clone(),
+            "bad_key".to_string(),
+            vec![Value::Integer(10)],
+        )
+        .await;
         assert_eq!(result, Some(Value::Array(vec![])));
     }
 }

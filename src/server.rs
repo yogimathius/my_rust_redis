@@ -5,7 +5,9 @@ use crate::models::value::Value;
 use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use std::time::Instant;
 use tokio::net::TcpListener;
 
@@ -33,7 +35,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(args: Args) -> Self {
+    pub fn new(args: Args) -> Arc<Mutex<Self>> {
         let role = match args.replicaof {
             Some(vec) => {
                 let mut iter = vec.into_iter();
@@ -46,13 +48,13 @@ impl Server {
             }
             None => Role::Main,
         };
-        Self {
+        Arc::new(Mutex::new(Self {
             cache: Arc::new(Mutex::new(HashMap::new())),
             role,
             port: args.port,
             sync: false,
             replicas: Arc::new(Mutex::new(Vec::new())),
-        }
+        }))
     }
 
     pub async fn match_replica(&mut self, args: Args) {
@@ -72,7 +74,7 @@ impl Server {
                         }
                     }
                 }
-                self.replicas.lock().unwrap().push(replica);
+                self.replicas.lock().await.push(replica);
             }
             None => {}
         }
@@ -84,12 +86,13 @@ impl Server {
 
         loop {
             let stream = listener.accept().await;
-            let server: Server = self.clone();
+            let server: Arc<Mutex<Server>> = Arc::new(Mutex::new(self.clone()));
             match stream {
                 Ok((stream, _)) => {
+                    let server_clone = Arc::clone(&server);
                     tokio::spawn(async move {
-                        let mut handler = RespHandler::new(stream);
-                        handler.handle_client(server).await.unwrap();
+                        let mut handler = RespHandler::new(stream, server_clone.clone());
+                        handler.handle_client(server_clone).await.unwrap();
                     });
                 }
                 Err(e) => {
@@ -144,7 +147,7 @@ impl Server {
     }
 
     pub async fn propagate_command(&self, command: &str, args: Vec<Value>) {
-        let replicas = self.replicas.lock().unwrap();
+        let replicas = self.replicas.lock().await;
         for replica in replicas.iter() {
             let mut replica = replica.clone();
             replica

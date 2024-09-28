@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -32,7 +33,7 @@ impl ReplicaClient {
 
     pub async fn send_ping(&mut self, server: &Server) -> Result<()> {
         let msg = server.send_ping().unwrap();
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.lock().await;
         stream.write_all(msg.serialize().as_bytes()).await?;
         Ok(())
     }
@@ -45,7 +46,7 @@ impl ReplicaClient {
             _ => vec![],
         };
         let replconf = server.generate_replconf(command, params).unwrap();
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.lock().await;
 
         stream.write_all(replconf.serialize().as_bytes()).await?;
         Ok(())
@@ -53,7 +54,7 @@ impl ReplicaClient {
 
     pub async fn send_psync(&mut self, server: &Server) -> Result<()> {
         let msg = server.send_psync().unwrap();
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.lock().await;
 
         stream.write_all(msg.serialize().as_bytes()).await?;
         Ok(())
@@ -61,7 +62,7 @@ impl ReplicaClient {
 
     pub async fn read_response(&mut self) -> Result<String, std::io::Error> {
         let mut buffer = [0; 512];
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.lock().await;
 
         let n = stream.read(&mut buffer).await?;
         if n == 0 {
@@ -78,6 +79,7 @@ impl ReplicaClient {
         response: &str,
         server: &Server,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        println!("response: {}", response);
         match response.trim() {
             "+PONG" => {
                 self.send_replconf(server).await?;
@@ -110,7 +112,7 @@ impl ReplicaClient {
             let arg_str = arg.serialize();
             msg.push_str(&format!("${}\r\n{}\r\n", arg_str.len(), arg_str));
         }
-        let mut stream = self.stream.lock().unwrap();
+        let mut stream = self.stream.lock().await;
 
         stream.write_all(msg.as_bytes()).await?;
         Ok(())

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
- 
+
     use std::time::Instant;
 
     use crate::setup::setup_server;
@@ -8,33 +8,27 @@ mod tests {
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::{RedisItem, Server};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
-        let mut server = setup_server();
-
-        let args = vec![
-            Value::BulkString("field1".to_string()),
-            Value::BulkString("value1".to_string()),
-            Value::BulkString("field2".to_string()),
-            Value::BulkString("value2".to_string()),
-        ];
-        hset_handler(&mut server, "myhash".to_string(), args);
-        server
+    fn setup() -> Arc<Mutex<Server>> {
+        setup_server()
     }
 
-    #[test]
-    fn test_hset_new_hash() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hset_new_hash() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::BulkString("value1".to_string()),
             Value::BulkString("field2".to_string()),
             Value::BulkString("value2".to_string()),
         ];
-        let result = hset_handler(&mut server, "myhash".to_string(), args);
+        let result = hset_handler(server.clone(), "myhash".to_string(), args).await;
         assert_eq!(result, Some(Value::Integer(2)));
 
-        let cache = server.cache.lock().unwrap();
+        let server_locked = server.lock().await;
+        let cache = server_locked.cache.lock().await;
         if let Some(item) = cache.get("myhash") {
             if let Value::Hash(hash) = &item.value {
                 assert_eq!(
@@ -53,23 +47,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_hset_update_existing_field() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hset_update_existing_field() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::BulkString("value1".to_string()),
         ];
-        hset_handler(&mut server, "myhash".to_string(), args);
+        hset_handler(server.clone(), "myhash".to_string(), args).await;
 
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::BulkString("new_value1".to_string()),
         ];
-        let result = hset_handler(&mut server, "myhash".to_string(), args);
+        let result = hset_handler(server.clone(), "myhash".to_string(), args).await;
         assert_eq!(result, Some(Value::Integer(1)));
 
-        let cache = server.cache.lock().unwrap();
+        let server_locked = server.lock().await;
+        let cache = server_locked.cache.lock().await;
         if let Some(item) = cache.get("myhash") {
             if let Value::Hash(hash) = &item.value {
                 assert_eq!(
@@ -84,15 +79,15 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_hset_invalid_arguments() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hset_invalid_arguments() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::Integer(10),
             Value::BulkString("field2".to_string()),
         ];
-        let result = hset_handler(&mut server, "myhash".to_string(), args);
+        let result = hset_handler(server.clone(), "myhash".to_string(), args).await;
         assert_eq!(
             result,
             Some(Value::Error(
@@ -101,18 +96,19 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_hset_wrong_type() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_hset_wrong_type() {
+        let server = setup();
         let args = vec![
             Value::BulkString("field1".to_string()),
             Value::BulkString("value1".to_string()),
         ];
-        hset_handler(&mut server, "myhash".to_string(), args);
+        hset_handler(server.clone(), "myhash".to_string(), args).await;
 
         // Simulate setting the key to a different type
         {
-            let mut cache = server.cache.lock().unwrap();
+            let server_locked = server.lock().await;
+            let mut cache = server_locked.cache.lock().await;
             cache.insert(
                 "myhash".to_string(),
                 RedisItem {
@@ -128,7 +124,7 @@ mod tests {
             Value::BulkString("field1".to_string()),
             Value::BulkString("new_value1".to_string()),
         ];
-        let result = hset_handler(&mut server, "myhash".to_string(), args);
+        let result = hset_handler(server.clone(), "myhash".to_string(), args).await;
         assert_eq!(
             result,
             Some(Value::Error(

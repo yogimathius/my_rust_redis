@@ -1,6 +1,14 @@
 use crate::{log, models::value::Value, server::Server};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn keys_handler(_server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn keys_handler(
+    server: Arc<Mutex<Server>>,
+    _key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let _ = server.lock().await;
+
     log!("keys_handler handler {:?}", args);
     // Pseudocode:
     // 1. Extract pattern from args.

@@ -1,6 +1,14 @@
 use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn lindex_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn lindex_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     log!(
         "lindex_handler called with key: {} and args: {:?}",
         key,
@@ -29,7 +37,9 @@ pub fn lindex_handler(server: &mut Server, key: String, args: Vec<Value>) -> Opt
         Some(Value::Error(
             "ERR operation against a key holding the wrong kind of value".to_string(),
         ))
-    }) {
+    })
+    .await
+    {
         Ok(result) => result,
         Err(err) => Some(err),
     }

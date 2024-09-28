@@ -1,10 +1,19 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use crate::{
     models::{redis_type::RedisType, value::Value},
     server::Server,
 };
 
-pub fn hexists_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
-    let cache = server.cache.lock().unwrap();
+pub async fn hexists_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
+    let cache = server.cache.lock().await;
     match cache.get(&key) {
         Some(item) if item.redis_type == RedisType::Hash => match &item.value {
             Value::Hash(hash) => match args.get(0) {

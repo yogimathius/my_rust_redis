@@ -2,7 +2,8 @@ use lazy_static::lazy_static;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Arguments;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use anyhow::Result;
 use bytes::BytesMut;
@@ -215,7 +216,7 @@ pub fn extract_args(args: Vec<Value>) -> (String, Option<String>, Option<String>
     (key, arg1, arg2, additional_args)
 }
 
-pub fn lock_and_get_item<'a, F, R>(
+pub async fn lock_and_get_item<'a, F, R>(
     cache: &Arc<Mutex<HashMap<String, RedisItem>>>,
     key: &str,
     callback: F,
@@ -223,7 +224,7 @@ pub fn lock_and_get_item<'a, F, R>(
 where
     F: FnOnce(&mut RedisItem) -> R,
 {
-    let mut cache = cache.lock().unwrap();
+    let mut cache = cache.lock().await;
     match cache.get_mut(key) {
         Some(item) => Ok(callback(item)),
         None => Err(Value::Error("ERR no such key".to_string())),

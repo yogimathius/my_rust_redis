@@ -8,8 +8,10 @@ mod tests {
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::{RedisItem, Server};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
+    async fn setup() -> Arc<Mutex<Server>> {
         let server = setup_server();
         let key = "key".to_string();
         let list = vec![
@@ -23,31 +25,37 @@ mod tests {
             expiration: None,
             redis_type: RedisType::List,
         };
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
         server
     }
 
-    #[test]
-    fn test_llen_handler() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_llen_handler() {
+        let server = setup().await;
         let key = "key".to_string();
         let args = vec![Value::BulkString(key.clone())];
-        let result = llen_handler(&mut server, key, args);
+        let result = llen_handler(server.clone(), key, args).await;
         assert_eq!(result, Some(Value::Integer(3)));
     }
 
-    #[test]
-    fn test_llen_handler_no_key() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_llen_handler_no_key() {
+        let server = setup().await;
         let key = "no_key".to_string();
         let args = vec![Value::BulkString(key.clone())];
-        let result = llen_handler(&mut server, key, args);
+        let result = llen_handler(server.clone(), key, args).await;
         assert_eq!(result, Some(Value::Error("ERR no such key".to_string())));
     }
 
-    #[test]
-    fn test_llen_handler_wrong_type() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_llen_handler_wrong_type() {
+        let server = setup().await;
         let key = "wrong_type".to_string();
         let redis_item = RedisItem {
             value: Value::BulkString("value".to_string()),
@@ -55,9 +63,15 @@ mod tests {
             expiration: None,
             redis_type: RedisType::String,
         };
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
         let args = vec![Value::BulkString(key.clone())];
-        let result = llen_handler(&mut server, key, args);
+        let result = llen_handler(server.clone(), key, args).await;
         assert_eq!(
             result,
             Some(Value::Error(

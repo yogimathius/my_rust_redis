@@ -2,22 +2,30 @@ use crate::{
     models::value::Value,
     server::{Role, Server},
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn ping_handler(_: &mut Server, _key: String, _: Vec<Value>) -> Option<Value> {
+pub fn ping_handler(_: Arc<Mutex<Server>>, _key: String, _: Vec<Value>) -> Option<Value> {
     Some(Value::SimpleString("PONG".to_string()))
 }
 
-pub fn echo_handler(_: &mut Server, arg: String, _: Vec<Value>) -> Option<Value> {
+pub fn echo_handler(_: Arc<Mutex<Server>>, arg: String, _: Vec<Value>) -> Option<Value> {
     Some(Value::BulkString(arg))
 }
 
-pub fn flushall_handler(server: &mut Server, _key: String, _: Vec<Value>) -> Option<Value> {
-    let mut cache = server.cache.lock().unwrap();
+pub async fn flushall_handler(
+    server: Arc<Mutex<Server>>,
+    _key: String,
+    _: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+    let mut cache = server.cache.lock().await;
     cache.clear();
     Some(Value::SimpleString("OK".to_string()))
 }
 
-pub fn info_handler(server: &Server) -> Option<Value> {
+pub async fn info_handler(server: Arc<Mutex<Server>>, _: String, _: Vec<Value>) -> Option<Value> {
+    let server = server.lock().await;
     let mut info = format!("role:{}", server.role.to_string());
     match &server.role {
         Role::Main => {

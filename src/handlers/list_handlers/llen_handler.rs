@@ -3,8 +3,16 @@ use crate::{
     server::Server,
     utilities::lock_and_get_item,
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn llen_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn llen_handler(
+    server: Arc<Mutex<Server>>,
+    _key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     let key = match args.get(0) {
         Some(Value::BulkString(s)) => s.clone(),
         _ => {
@@ -28,7 +36,9 @@ pub fn llen_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Opti
                 "ERR operation against a key holding the wrong kind of value".to_string(),
             ))
         }
-    }) {
+    })
+    .await
+    {
         Ok(result) => result,
         Err(err) => Some(err),
     }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
- 
+
     use std::time::Instant;
 
     use crate::setup::setup_server;
@@ -8,14 +8,16 @@ mod tests {
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::{RedisItem, Server};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
-        return setup_server();
+    async fn setup() -> Arc<Mutex<Server>> {
+        setup_server()
     }
 
-    #[test]
-    fn test_rpop_handler_existing_list() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_rpop_handler_existing_list() {
+        let server = setup().await;
         let key = "key".to_string();
         let initial_list = vec![
             Value::BulkString("initial".to_string()),
@@ -29,11 +31,17 @@ mod tests {
             redis_type: RedisType::List,
         };
 
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
 
         let args = vec![];
 
-        let result = rpop_handler(&mut server, key.clone(), args);
+        let result = rpop_handler(server.clone(), key.clone(), args).await;
         assert_eq!(result, Some(Value::BulkString("second".to_string())));
     }
 }

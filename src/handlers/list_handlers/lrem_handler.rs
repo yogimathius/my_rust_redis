@@ -1,6 +1,14 @@
 use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
-pub fn lrem_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+pub async fn lrem_handler(
+    server: Arc<Mutex<Server>>,
+    key: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    let server = server.lock().await;
+
     log!("lrem_handler called with key: {} and args: {:?}", key, args);
     let count = match args.get(0) {
         Some(Value::Integer(i)) => *i,
@@ -35,7 +43,9 @@ pub fn lrem_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
                 "ERR operation against a key holding the wrong kind of value".to_string(),
             ))
         }
-    }) {
+    })
+    .await
+    {
         Ok(result) => result,
         Err(err) => Some(err),
     }

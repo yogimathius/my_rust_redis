@@ -1,22 +1,22 @@
 #[cfg(test)]
 mod tests {
- 
 
     use crate::setup::setup_server;
     use redis_starter_rust::handlers::lset_handler;
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
-    use redis_starter_rust::server::RedisItem;
-    use redis_starter_rust::server::Server;
+    use redis_starter_rust::server::{RedisItem, Server};
+    use std::sync::Arc;
     use std::time::Instant;
+    use tokio::sync::Mutex;
 
-    fn setup() -> Server {
-        return setup_server();
+    async fn setup() -> Arc<Mutex<Server>> {
+        setup_server()
     }
 
-    #[test]
-    fn test_lset_handler() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_lset_handler() {
+        let server = setup().await;
 
         // Insert a list into the cache
         let key = "key".to_string();
@@ -31,7 +31,13 @@ mod tests {
             expiration: None,
             redis_type: RedisType::List,
         };
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
 
         // Test setting a value in the list
         let args = vec![
@@ -39,11 +45,12 @@ mod tests {
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, key.clone(), args);
+        let result = lset_handler(server.clone(), key.clone(), args).await;
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
 
         // Verify the value was set correctly
-        let cache = server.cache.lock().unwrap();
+        let server_locked = server.lock().await;
+        let cache = server_locked.cache.lock().await;
         let item = cache.get(&key).unwrap();
         if let Value::Array(ref list) = item.value {
             assert_eq!(list[1], Value::BulkString("new_value".to_string()));
@@ -52,9 +59,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_lset_handler_index_out_of_range() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_lset_handler_index_out_of_range() {
+        let server = setup().await;
 
         // Insert a list into the cache
         let key = "key".to_string();
@@ -69,7 +76,13 @@ mod tests {
             expiration: None,
             redis_type: RedisType::List,
         };
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
 
         // Test setting a value with an out-of-range index
         let args = vec![
@@ -77,16 +90,16 @@ mod tests {
             Value::Integer(10),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, key, args);
+        let result = lset_handler(server.clone(), key, args).await;
         assert_eq!(
             result,
             Some(Value::Error("ERR index out of range".to_string()))
         );
     }
 
-    #[test]
-    fn test_lset_handler_no_such_key() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_lset_handler_no_such_key() {
+        let server = setup().await;
 
         // Test setting a value in a non-existent list
         let args = vec![
@@ -94,13 +107,13 @@ mod tests {
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, "non_existent_key".to_string(), args);
+        let result = lset_handler(server.clone(), "non_existent_key".to_string(), args).await;
         assert_eq!(result, Some(Value::Error("ERR no such key".to_string())));
     }
 
-    #[test]
-    fn test_lset_handler_wrong_type() {
-        let mut server = setup();
+    #[tokio::test]
+    async fn test_lset_handler_wrong_type() {
+        let server = setup().await;
 
         // Insert a non-list value into the cache
         let key = "key".to_string();
@@ -110,7 +123,13 @@ mod tests {
             expiration: None,
             redis_type: RedisType::String,
         };
-        server.cache.lock().unwrap().insert(key.clone(), redis_item);
+        server
+            .lock()
+            .await
+            .cache
+            .lock()
+            .await
+            .insert(key.clone(), redis_item);
 
         // Test setting a value in a non-list key
         let args = vec![
@@ -118,7 +137,7 @@ mod tests {
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
-        let result = lset_handler(&mut server, key, args);
+        let result = lset_handler(server.clone(), key, args).await;
         assert_eq!(
             result,
             Some(Value::Error(
