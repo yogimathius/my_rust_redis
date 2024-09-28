@@ -1,13 +1,17 @@
+use std::sync::{Arc, Mutex};
+
 use anyhow::Result;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 use crate::log;
+use crate::models::value::Value;
 use crate::server::Server;
 
+#[derive(Clone, Debug)]
 pub struct ReplicaClient {
     pub port: u16,
-    pub stream: TcpStream,
+    pub stream: Arc<Mutex<TcpStream>>,
     pub handshakes: u8,
 }
 
@@ -17,6 +21,7 @@ impl ReplicaClient {
         let addr = iter.next().unwrap();
         let port = iter.next().unwrap();
         let stream = TcpStream::connect(format!("{addr}:{port}")).await.unwrap();
+        let stream = Arc::new(Mutex::new(stream));
 
         Ok(Self {
             port: port.parse::<u16>().unwrap(),
@@ -27,7 +32,8 @@ impl ReplicaClient {
 
     pub async fn send_ping(&mut self, server: &Server) -> Result<()> {
         let msg = server.send_ping().unwrap();
-        self.stream.write_all(msg.serialize().as_bytes()).await?;
+        let mut stream = self.stream.lock().unwrap();
+        stream.write_all(msg.serialize().as_bytes()).await?;
         Ok(())
     }
 
@@ -39,21 +45,25 @@ impl ReplicaClient {
             _ => vec![],
         };
         let replconf = server.generate_replconf(command, params).unwrap();
-        self.stream
-            .write_all(replconf.serialize().as_bytes())
-            .await?;
+        let mut stream = self.stream.lock().unwrap();
+
+        stream.write_all(replconf.serialize().as_bytes()).await?;
         Ok(())
     }
 
     pub async fn send_psync(&mut self, server: &Server) -> Result<()> {
         let msg = server.send_psync().unwrap();
-        self.stream.write_all(msg.serialize().as_bytes()).await?;
+        let mut stream = self.stream.lock().unwrap();
+
+        stream.write_all(msg.serialize().as_bytes()).await?;
         Ok(())
     }
 
     pub async fn read_response(&mut self) -> Result<String, std::io::Error> {
         let mut buffer = [0; 512];
-        let n = self.stream.read(&mut buffer).await?;
+        let mut stream = self.stream.lock().unwrap();
+
+        let n = stream.read(&mut buffer).await?;
         if n == 0 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::UnexpectedEof,
@@ -86,6 +96,23 @@ impl ReplicaClient {
                 log!("Failed to establish replication: {}", response);
             }
         }
+        Ok(())
+    }
+
+    pub async fn propagate_command(&mut self, command: &str, args: Vec<Value>) -> Result<()> {
+        let mut msg = format!(
+            "*{}\r\n${}\r\n{}\r\n",
+            args.len() + 1,
+            command.len(),
+            command
+        );
+        for arg in args {
+            let arg_str = arg.serialize();
+            msg.push_str(&format!("${}\r\n{}\r\n", arg_str.len(), arg_str));
+        }
+        let mut stream = self.stream.lock().unwrap();
+
+        stream.write_all(msg.as_bytes()).await?;
         Ok(())
     }
 }

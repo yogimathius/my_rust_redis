@@ -1,19 +1,14 @@
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
+ 
 
+    use crate::setup::setup_server;
     use redis_starter_rust::handlers::set_handler;
     use redis_starter_rust::models::value::Value;
-    use redis_starter_rust::server::{Role, Server};
+    use redis_starter_rust::server::Server;
 
     fn setup() -> Server {
-        Server {
-            cache: Arc::new(Mutex::new(HashMap::new())),
-            role: Role::Main,
-            port: 6379,
-            sync: false,
-        }
+        return setup_server();
     }
 
     #[test]
@@ -23,7 +18,7 @@ mod tests {
             Value::BulkString("key".to_string()),
             Value::BulkString("value".to_string()),
         ];
-        let result = set_handler(&mut server, "key".to_string(),  args);
+        let result = set_handler(&mut server, "key".to_string(), args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
         let cache = server.cache.lock().unwrap();
         assert!(cache.contains_key("key"));
@@ -38,7 +33,7 @@ mod tests {
             Value::BulkString("px".to_string()),
             Value::BulkString("10".to_string()),
         ];
-        let result = set_handler(&mut server, "key".to_string(),  args);
+        let result = set_handler(&mut server, "key".to_string(), args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
         let cache = server.cache.lock().unwrap();
         assert!(cache.contains_key("key"));

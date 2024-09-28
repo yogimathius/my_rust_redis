@@ -29,6 +29,7 @@ pub struct Server {
     pub role: Role,
     pub port: u16,
     pub sync: bool,
+    pub replicas: Arc<Mutex<Vec<ReplicaClient>>>,
 }
 
 impl Server {
@@ -50,6 +51,7 @@ impl Server {
             role,
             port: args.port,
             sync: false,
+            replicas: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -70,6 +72,7 @@ impl Server {
                         }
                     }
                 }
+                self.replicas.lock().unwrap().push(replica);
             }
             None => {}
         }
@@ -137,6 +140,17 @@ impl Server {
                 let payload = Value::Array(msg);
                 Some(payload)
             }
+        }
+    }
+
+    pub async fn propagate_command(&self, command: &str, args: Vec<Value>) {
+        let replicas = self.replicas.lock().unwrap();
+        for replica in replicas.iter() {
+            let mut replica = replica.clone();
+            replica
+                .propagate_command(command, args.clone())
+                .await
+                .unwrap();
         }
     }
 }

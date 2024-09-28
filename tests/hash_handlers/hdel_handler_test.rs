@@ -1,18 +1,13 @@
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
 
     use redis_starter_rust::handlers::{hdel_handler, hset_handler};
     use redis_starter_rust::models::value::Value;
-    use redis_starter_rust::server::{Role, Server};
+    use redis_starter_rust::server::Server;
+
+    use crate::setup::setup_server;
     fn setup() -> Server {
-        let mut server = Server {
-            cache: Arc::new(Mutex::new(HashMap::new())),
-            role: Role::Main,
-            port: 6379,
-            sync: false,
-        };
+        let mut server = setup_server();
 
         let args = vec![
             Value::BulkString("field1".to_string()),
