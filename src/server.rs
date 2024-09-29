@@ -31,8 +31,8 @@ pub struct Server {
     pub role: Role,
     pub port: u16,
     pub sync: bool,
-    pub replicas: Arc<Mutex<Vec<ReplicaClient>>>,
-    pub replica_ports: Vec<u16>,
+    // pub replicas: Arc<Mutex<Vec<ReplicaClient>>>,
+    pub replica_ports: Arc<Mutex<Vec<u16>>>,
 }
 
 impl Server {
@@ -54,8 +54,8 @@ impl Server {
             role,
             port: args.port,
             sync: false,
-            replicas: Arc::new(Mutex::new(Vec::new())),
-            replica_ports: vec![],
+            // replicas: Arc::new(Mutex::new(Vec::new())),
+            replica_ports: Arc::new(Mutex::new(Vec::new())),
         }))
     }
 
@@ -67,16 +67,16 @@ impl Server {
                 let mut replica = ReplicaClient::new(vec).await.unwrap();
                 replica.send_ping(&self).await.unwrap();
 
-                while replica.handshakes <= 4 {
-                    if replica.handshakes == 4 {
-                        // log!("replica.handshakes {}", replica.handshakes);
-                        // log!("pushing replica to replicas");
+                while replica.handshakes <= 3 {
+                    // if replica.handshakes == 4 {
+                    //     // log!("replica.handshakes {}", replica.handshakes);
+                    //     // log!("pushing replica to replicas");
 
-                        // let mut replicas = self.replicas.lock().await;
-                        // replicas.push(replica.clone());
-                        // log!("replicas updated: {:?}", replicas);
-                        break;
-                    }
+                    //     // let mut replicas = self.replicas.lock().await;
+                    //     // replicas.push(replica.clone());
+                    //     // log!("replicas updated: {:?}", replicas);
+                    //     break;
+                    // }
                     match replica.read_response().await {
                         Ok(response) => {
                             log!("response: {}", response);
@@ -99,6 +99,10 @@ impl Server {
         }
     }
 
+    pub fn is_replica(&self) -> bool {
+        matches!(self.role, Role::Slave { .. })
+    }
+
     pub async fn listen(&mut self, port: u16) {
         let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
         log!("Listening on Port {}", port);
@@ -111,7 +115,9 @@ impl Server {
                     let server_clone = Arc::clone(&server);
                     tokio::spawn(async move {
                         let mut handler = RespHandler::new(stream, server_clone.clone());
-                        handler.handle_client(server_clone).await.unwrap();
+                        if let Err(e) = handler.handle_client(server_clone).await {
+                            log!("Error handling client: {:?}", e);
+                        }
                     });
                 }
                 Err(e) => {

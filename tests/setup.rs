@@ -9,7 +9,7 @@ pub fn setup_server() -> Arc<Mutex<Server>> {
         role: Role::Main,
         port: 6379,
         sync: false,
-        replicas: Arc::new(Mutex::new(Vec::new())),
+        replica_ports: Arc::new(Mutex::new(Vec::new())),
     }));
 
     server

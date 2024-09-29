@@ -21,8 +21,8 @@ pub async fn replconf_handler(
     let replica_port = replica_port.parse::<u16>().unwrap_or(0);
 
     if replica_port != 0 {
-        let mut server = server.lock().await;
-        server.replica_ports.push(replica_port);
+        let server = server.lock().await;
+        server.replica_ports.lock().await.push(replica_port);
     }
     Some(Value::SimpleString("OK".to_string()))
 }
