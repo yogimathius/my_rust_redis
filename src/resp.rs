@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::vec;
 use tokio::sync::Mutex;
 
 use anyhow::Result;
@@ -77,6 +78,18 @@ impl RespHandler {
         let (command, key, args) = extract_command(value).unwrap();
         log!("command: {}", command);
         if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+            let key_with_args = vec![
+                Value::BulkString(command.clone()),
+                Value::BulkString(key.clone()),
+                Value::Array(args.clone()),
+            ];
+            log!("key_with_args: {:?}", key_with_args);
+            server
+                .lock()
+                .await
+                .propagate_command(command.as_str(), key_with_args)
+                .await;
+
             command_function.handle(server.clone(), key, args).await
         } else {
             Value::SimpleString("Unknown command".to_string());

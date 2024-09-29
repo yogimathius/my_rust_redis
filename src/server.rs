@@ -32,6 +32,7 @@ pub struct Server {
     pub port: u16,
     pub sync: bool,
     pub replicas: Arc<Mutex<Vec<ReplicaClient>>>,
+    pub replica_ports: Vec<u16>,
 }
 
 impl Server {
@@ -54,18 +55,32 @@ impl Server {
             port: args.port,
             sync: false,
             replicas: Arc::new(Mutex::new(Vec::new())),
+            replica_ports: vec![],
         }))
     }
 
     pub async fn match_replica(&mut self, args: Args) {
+        log!("checking replica args {:?}", args);
         match args.replicaof {
             Some(vec) => {
+                log!("vec {:?}", vec);
                 let mut replica = ReplicaClient::new(vec).await.unwrap();
                 replica.send_ping(&self).await.unwrap();
 
-                while replica.handshakes < 4 {
+                while replica.handshakes <= 4 {
+                    if replica.handshakes == 4 {
+                        // log!("replica.handshakes {}", replica.handshakes);
+                        // log!("pushing replica to replicas");
+
+                        // let mut replicas = self.replicas.lock().await;
+                        // replicas.push(replica.clone());
+                        // log!("replicas updated: {:?}", replicas);
+                        break;
+                    }
                     match replica.read_response().await {
                         Ok(response) => {
+                            log!("response: {}", response);
+                            log!("replica.handshakes: {}", replica.handshakes);
                             replica.handshakes += 1;
                             replica.handle_response(&response, &self).await.unwrap();
                         }
@@ -74,7 +89,11 @@ impl Server {
                         }
                     }
                 }
-                self.replicas.lock().await.push(replica);
+                println!("self {:?}", self);
+                println!("replica {:?}", replica);
+                // let mut replicas = self.replicas.lock().await;
+                // replicas.push(replica);
+                // log!("replicas updated: {:?}", replicas);
             }
             None => {}
         }
@@ -147,14 +166,16 @@ impl Server {
     }
 
     pub async fn propagate_command(&self, command: &str, args: Vec<Value>) {
-        let replicas = self.replicas.lock().await;
-        for replica in replicas.iter() {
-            let mut replica = replica.clone();
-            replica
-                .propagate_command(command, args.clone())
-                .await
-                .unwrap();
-        }
+        let replica_ports = self.replica_ports.clone();
+        log!("replica_ports: {:?}", replica_ports);
+        // for replica in replicas.iter() {
+        //     log!("propagating to replica: {:?}", replica);
+        //     let mut replica = replica.clone();
+        //     replica
+        //         .propagate_command(command, args.clone())
+        //         .await
+        //         .unwrap();
+        // }
     }
 }
 

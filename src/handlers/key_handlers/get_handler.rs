@@ -1,3 +1,4 @@
+use crate::log;
 use crate::{models::value::Value, server::Server};
 use std::sync::Arc;
 use std::time::Instant;
@@ -11,10 +12,10 @@ pub async fn get_handler(
     let server = server.lock().await;
 
     let cache = server.cache.lock().await;
-    println!("key {:?}", key);
+    log!("key {:?}", key);
     match cache.get(&key) {
         Some(value) => {
-            println!("value {:?}", value);
+            log!("value {:?}", value);
             let response = if let Some(expiration) = value.expiration {
                 let now = Instant::now();
                 if now.duration_since(value.created_at).as_millis() > expiration as u128 {
@@ -25,7 +26,7 @@ pub async fn get_handler(
             } else {
                 value.value.clone()
             };
-            println!("response {:?}", response);
+            log!("response {:?}", response);
             Some(response)
         }
         None => Some(Value::NullBulkString),

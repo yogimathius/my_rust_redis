@@ -5,10 +5,25 @@ use crate::{
     log,
     models::value::Value,
     server::{Role, Server},
+    utilities::unpack_bulk_str,
 };
 use uuid::Uuid;
 
-pub fn replconf_handler(_: Arc<Mutex<Server>>, _: String, _: Vec<Value>) -> Option<Value> {
+pub async fn replconf_handler(
+    server: Arc<Mutex<Server>>,
+    _: String,
+    args: Vec<Value>,
+) -> Option<Value> {
+    log!("args: {:?}", args);
+    let replica_port = unpack_bulk_str(args[0].clone()).unwrap();
+    println!("replica_port: {}", replica_port);
+    // convert string to u16
+    let replica_port = replica_port.parse::<u16>().unwrap_or(0);
+
+    if replica_port != 0 {
+        let mut server = server.lock().await;
+        server.replica_ports.push(replica_port);
+    }
     Some(Value::SimpleString("OK".to_string()))
 }
 

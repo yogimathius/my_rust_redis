@@ -94,7 +94,7 @@ lazy_static! {
         handlers.insert("INFO", Box::new(AsyncCommandHandler::new(info_handler)));
 
         // Replication commands
-        handlers.insert("REPLCONF", Box::new(SyncCommandHandler::new(replconf_handler)));
+        handlers.insert("REPLCONF", Box::new(AsyncCommandHandler::new(replconf_handler)));
         handlers.insert("PSYNC", Box::new(AsyncCommandHandler::new(psync_handler)));
 
         // Server commands
