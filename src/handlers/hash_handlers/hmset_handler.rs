@@ -1,9 +1,10 @@
-use crate::{models::value::Value, server::Server};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
+use crate::{models::value::Value, server::RedisItem};
+
 pub fn hmset_handler(
-    _server: Arc<Mutex<Server>>,
+    _cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     _key: String,
     _args: Vec<Value>,
 ) -> Option<Value> {

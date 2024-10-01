@@ -8,6 +8,7 @@ pub enum Value {
     Hash(HashMap<String, Value>),
     Integer(i64),
     Error(String),
+    BulkBytes(Vec<u8>),
     NullBulkString,
 }
 
@@ -35,6 +36,14 @@ impl Value {
             Value::NullBulkString => format!("$-1\r\n"),
             Value::Integer(i) => format!(":{}\r\n", i),
             Value::Error(e) => format!("-{}\r\n", e),
+            Value::BulkBytes(b) => {
+                let mut serialized = format!("${}\r\n", b.len());
+                for byte in b {
+                    serialized.push_str(&format!("{}", byte));
+                }
+
+                serialized
+            }
         }
     }
 }

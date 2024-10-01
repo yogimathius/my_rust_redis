@@ -1,17 +1,17 @@
 use crate::log;
-use crate::{models::value::Value, server::Server};
+use crate::models::value::Value;
+use crate::server::RedisItem;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex;
 
 pub async fn get_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     key: String,
     _args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
-    let cache = server.cache.lock().await;
+    let cache = cache.lock().await;
     log!("key {:?}", key);
     match cache.get(&key) {
         Some(value) => {

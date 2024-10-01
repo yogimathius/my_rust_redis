@@ -1,21 +1,19 @@
 use crate::{
     log,
     models::value::Value,
-    server::Server,
+    server::RedisItem,
     utilities::{should_set_expiry, unpack_bulk_str, unpack_integer},
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 use std::time::Instant;
 
 pub async fn expire_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
     let expiration_time = unpack_integer(args.get(1).unwrap().clone()).unwrap();
 
     let option = match args.get(2) {
@@ -24,7 +22,7 @@ pub async fn expire_handler(
     };
 
     log!("option {:?}", option);
-    let mut cache = server.cache.lock().await;
+    let mut cache = cache.lock().await;
 
     match cache.get(&key) {
         Some(value) => {

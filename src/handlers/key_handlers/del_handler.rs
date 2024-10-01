@@ -1,20 +1,19 @@
-use crate::{models::value::Value, server::Server, utilities::unpack_bulk_str};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
+use crate::{models::value::Value, server::RedisItem, utilities::unpack_bulk_str};
+
 pub async fn del_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     _key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
     let keys = args
         .iter()
         .map(|arg| unpack_bulk_str(arg.clone()).unwrap())
         .collect::<Vec<String>>();
 
-    let mut cache = server.cache.lock().await;
+    let mut cache = cache.lock().await;
 
     let mut count = 0;
 

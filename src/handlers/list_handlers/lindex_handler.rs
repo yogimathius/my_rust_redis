@@ -1,14 +1,12 @@
-use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
-use std::sync::Arc;
+use crate::{log, models::value::Value, server::RedisItem, utilities::lock_and_get_item};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 pub async fn lindex_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
     log!(
         "lindex_handler called with key: {} and args: {:?}",
         key,
@@ -20,7 +18,7 @@ pub async fn lindex_handler(
         _ => return Some(Value::Error("ERR value is not an integer".to_string())),
     };
 
-    match lock_and_get_item(&server.cache, &key, |item| {
+    match lock_and_get_item(&cache, &key, |item| {
         if let Value::Array(ref list) = item.value {
             if index < 0 {
                 let index = list.len() as i64 + index;

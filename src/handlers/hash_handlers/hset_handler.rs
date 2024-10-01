@@ -5,16 +5,14 @@ use tokio::sync::Mutex;
 use crate::{
     log,
     models::{redis_type::RedisType, value::Value},
-    server::{RedisItem, Server},
+    server::RedisItem,
 };
 
 pub async fn hset_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
     for chunk in args.chunks(2) {
         match chunk {
             [Value::BulkString(_), Value::BulkString(_)] => continue,
@@ -28,7 +26,7 @@ pub async fn hset_handler(
         }
     }
     // TODO: check for other value types for the value
-    let mut cache = server.cache.lock().await;
+    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let RedisType::Hash = item.redis_type {

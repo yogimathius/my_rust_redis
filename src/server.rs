@@ -1,21 +1,26 @@
-use crate::log;
-use crate::models::args::Args;
-use crate::models::redis_type::RedisType;
-use crate::models::value::Value;
-use crate::replica::ReplicaClient;
-use crate::resp::RespHandler;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
-use std::time::Instant;
-use tokio::net::TcpListener;
+use anyhow::Error;
+use tokio::{
+    fs::File,
+    io::AsyncReadExt,
+    net::{TcpListener, TcpStream},
+    sync::{
+        broadcast::{self, Sender},
+        Mutex,
+    },
+};
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Role {
-    Main,
-    Slave { host: String, port: u16 },
-}
+use crate::{
+    commands::COMMAND_HANDLERS,
+    config::Config,
+    connection::Connection,
+    handlers::{info_handler, set_handler},
+    log,
+    models::{redis_type::RedisType, value::Value},
+    replication::Replication,
+    utilities::extract_command,
+};
 
 #[derive(Debug, PartialEq)]
 pub struct RedisItem {
@@ -25,171 +30,168 @@ pub struct RedisItem {
     pub redis_type: RedisType,
 }
 
-#[derive(Clone, Debug)]
 pub struct Server {
+    pub replication: Replication,
+    pub config: Config,
     pub cache: Arc<Mutex<HashMap<String, RedisItem>>>,
-    pub role: Role,
-    pub port: u16,
-    pub sync: bool,
-    // pub replicas: Arc<Mutex<Vec<ReplicaClient>>>,
-    pub replica_ports: Arc<Mutex<Vec<u16>>>,
 }
 
 impl Server {
-    pub fn new(args: Args) -> Arc<Mutex<Self>> {
-        let role = match args.replicaof {
-            Some(vec) => {
-                let mut iter = vec.into_iter();
-                let addr = iter.next().unwrap();
-                let _ = iter.next().unwrap();
-                Role::Slave {
-                    host: addr,
-                    port: args.port,
-                }
-            }
-            None => Role::Main,
-        };
-        Arc::new(Mutex::new(Self {
+    pub fn new(config: Config) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Server {
+            replication: Replication::new(&config),
+            config,
             cache: Arc::new(Mutex::new(HashMap::new())),
-            role,
-            port: args.port,
-            sync: false,
-            // replicas: Arc::new(Mutex::new(Vec::new())),
-            replica_ports: Arc::new(Mutex::new(Vec::new())),
         }))
     }
 
-    pub async fn match_replica(&mut self, args: Args) {
-        log!("checking replica args {:?}", args);
-        match args.replicaof {
-            Some(vec) => {
-                log!("vec {:?}", vec);
-                let mut replica = ReplicaClient::new(vec).await.unwrap();
-                replica.send_ping(&self).await.unwrap();
+    pub async fn listen(&self) -> Result<TcpListener, Error> {
+        let address = format!("127.0.0.1:{}", self.config.port);
+        let listener = TcpListener::bind(address).await?;
 
-                while replica.handshakes <= 3 {
-                    // if replica.handshakes == 4 {
-                    //     // log!("replica.handshakes {}", replica.handshakes);
-                    //     // log!("pushing replica to replicas");
-
-                    //     // let mut replicas = self.replicas.lock().await;
-                    //     // replicas.push(replica.clone());
-                    //     // log!("replicas updated: {:?}", replicas);
-                    //     break;
-                    // }
-                    match replica.read_response().await {
-                        Ok(response) => {
-                            log!("response: {}", response);
-                            log!("replica.handshakes: {}", replica.handshakes);
-                            replica.handshakes += 1;
-                            replica.handle_response(&response, &self).await.unwrap();
-                        }
-                        Err(e) => {
-                            log!("Failed to read from stream: {}", e);
-                        }
-                    }
-                }
-                println!("self {:?}", self);
-                println!("replica {:?}", replica);
-                // let mut replicas = self.replicas.lock().await;
-                // replicas.push(replica);
-                // log!("replicas updated: {:?}", replicas);
-            }
-            None => {}
-        }
+        Ok(listener)
     }
 
-    pub fn is_replica(&self) -> bool {
-        matches!(self.role, Role::Slave { .. })
-    }
-
-    pub async fn listen(&mut self, port: u16) {
-        let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
-        log!("Listening on Port {}", port);
-
+    pub async fn handle_connection(
+        &mut self,
+        mut conn: Connection,
+        sender: Arc<Sender<Value>>,
+    ) -> Result<(), Error> {
+        let sender = Arc::clone(&sender);
+        log!("Handling connection");
         loop {
-            let stream = listener.accept().await;
-            let server: Arc<Mutex<Server>> = Arc::new(Mutex::new(self.clone()));
-            match stream {
-                Ok((stream, _)) => {
-                    let server_clone = Arc::clone(&server);
-                    tokio::spawn(async move {
-                        let mut handler = RespHandler::new(stream, server_clone.clone());
-                        if let Err(e) = handler.handle_client(server_clone).await {
-                            log!("Error handling client: {:?}", e);
-                        }
-                    });
+            let Ok(value) = conn.read_value().await else {
+                break Err(Error::msg("Unable to read value"));
+            };
+
+            if let Some(value) = value {
+                log!("value: {:?}", value);
+                self.execute_command(self.cache.clone(), value, sender.clone(), &mut conn)
+                    .await
+                    .unwrap();
+                conn.write_value(Value::SimpleString("OK".to_string()))
+                    .await?;
+            }
+        }
+    }
+
+    pub async fn connect_to_master(&self) -> Result<TcpStream, Error> {
+        if let Some(replicaof) = self.config.replicaof.clone() {
+            let stream = TcpStream::connect(replicaof).await?;
+            return Ok(stream);
+        }
+
+        Err(Error::msg("no replica of"))
+    }
+
+    pub async fn handshake(&self, mut conn: Connection) -> Result<(), Error> {
+        conn.write_value(Value::SimpleString("PING".to_string()))
+            .await?;
+
+        let _frame = conn.read_value().await?;
+
+        let replconf = Value::Array(vec![
+            Value::SimpleString("REPLCONF".to_string()),
+            Value::SimpleString("listening-port".to_string()),
+        ]);
+
+        conn.write_value(replconf).await?;
+
+        let _frame = conn.read_value().await?;
+
+        let replconf = Value::Array(vec![
+            Value::SimpleString("REPLCONF".to_string()),
+            Value::SimpleString("capa".to_string()),
+            Value::SimpleString("psync2".to_string()),
+        ]);
+
+        conn.write_value(replconf).await?;
+
+        let _frame = conn.read_value().await?;
+
+        let psync = Value::Array(vec![
+            Value::SimpleString("PSYNC".to_string()),
+            Value::SimpleString("?".to_string()),
+            Value::SimpleString("-1".to_string()),
+        ]);
+
+        conn.write_value(psync).await?;
+
+        let _frame = conn.read_value().await?;
+
+        Ok(())
+    }
+
+    pub async fn execute_command(
+        &mut self,
+        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+        value: Value,
+        sender: Arc<broadcast::Sender<Value>>,
+        conn: &mut Connection,
+    ) -> Result<(), Error> {
+        let (command, key, args) = extract_command(value.clone()).unwrap();
+        log!("command: {:?}", command);
+        match command.as_str() {
+            "PING" => {
+                let value = Value::SimpleString("PONG".to_string());
+                conn.write_value(value).await.unwrap();
+                Ok(())
+            }
+            "REPLCONF" => {
+                let value = Value::SimpleString("OK".to_string());
+                conn.write_value(value).await.unwrap();
+                Ok(())
+            }
+            "PSYNC" => {
+                let value =
+                    Value::SimpleString(format!("FULLRESYNC {} 0", self.replication.master_replid));
+                conn.write_value(value).await.unwrap();
+                self.write_rdb(conn).await.unwrap();
+                let mut receiver = sender.subscribe();
+
+                while let Ok(f) = receiver.recv().await {
+                    conn.write_value(f).await.unwrap();
                 }
-                Err(e) => {
-                    log!("error: {}", e);
+                Ok(())
+            }
+            "SET" => {
+                let response = sender.send(value);
+                log!("response: {:?}", response);
+                set_handler(cache, key, args).await;
+                Ok(())
+            }
+            "INFO" => {
+                let response = info_handler(self).await;
+                conn.write_value(response.unwrap()).await.unwrap();
+                Ok(())
+            }
+            _ => {
+                if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+                    command_function.handle(cache, key, args).await;
+                    Ok(())
+                } else {
+                    let value = Value::Error("ERR unknown command".to_string());
+                    conn.write_value(value).await.unwrap();
+                    Err(anyhow::Error::msg("Unknown command"))
                 }
             }
         }
     }
 
-    pub fn send_ping(&self) -> Option<Value> {
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let msg = vec![Value::BulkString(String::from("PING"))];
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
-    }
+    pub async fn write_rdb(&mut self, conn: &mut Connection) -> Result<(), Error> {
+        let mut rdb_buf: Vec<u8> = vec![];
+        log!("Opening dump.rdb");
+        let _ = File::open("rdb")
+            .await
+            .unwrap()
+            .read_to_end(&mut rdb_buf)
+            .await;
+        log!("Read {} bytes from dump.rdb", rdb_buf.len());
+        let contents = hex::decode(&rdb_buf).unwrap();
+        let header = format!("${}\r\n", contents.len());
+        conn.write_value(Value::BulkString(header)).await?;
+        conn.write_value(Value::BulkBytes(contents)).await?;
 
-    pub fn send_psync(&self) -> Option<Value> {
-        log!("Syncing with master");
-        log!("self.role {:?}", self.role);
-
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let msg = vec![
-                    Value::BulkString(String::from("PSYNC")),
-                    Value::BulkString(String::from("?")),
-                    Value::BulkString(String::from("-1")),
-                ];
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
-    }
-
-    pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let mut msg = vec![Value::BulkString(command.to_string())];
-                for (key, value) in params {
-                    msg.push(Value::BulkString(key.to_string()));
-                    msg.push(Value::BulkString(value.to_string()));
-                }
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
-    }
-
-    pub async fn propagate_command(&self, command: &str, args: Vec<Value>) {
-        let replica_ports = self.replica_ports.clone();
-        log!("replica_ports: {:?}", replica_ports);
-        // for replica in replicas.iter() {
-        //     log!("propagating to replica: {:?}", replica);
-        //     let mut replica = replica.clone();
-        //     replica
-        //         .propagate_command(command, args.clone())
-        //         .await
-        //         .unwrap();
-        // }
-    }
-}
-
-impl ToString for Role {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Main => String::from("master"),
-            Self::Slave { host: _, port: _ } => String::from("slave"),
-        }
+        Ok(())
     }
 }

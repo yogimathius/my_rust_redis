@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::vec;
-use tokio::sync::Mutex;
+use tokio::sync::{broadcast, Mutex};
 
 use anyhow::Result;
 use bytes::BytesMut;
@@ -29,13 +29,20 @@ impl RespHandler {
         }
     }
 
-    pub async fn handle_client(&mut self, server: Arc<Mutex<Server>>) -> Result<()> {
+    pub async fn handle_client(
+        &mut self,
+        server: Arc<Mutex<Server>>,
+        sender: Arc<broadcast::Sender<Value>>,
+    ) -> Result<()> {
+        let sender = Arc::clone(&sender);
+
         loop {
             let value: Option<Value> = self.read_value().await?;
 
             let response: Option<Value> = if let Some(value) = value {
                 log!("value: {:?}", value);
-                self.execute_command(value, server.clone()).await
+                self.execute_command(value, server.clone(), sender.clone())
+                    .await
             } else {
                 None
             };
@@ -43,11 +50,14 @@ impl RespHandler {
                 self.write_value(response).await.unwrap();
             }
             let mut server = server.lock().await;
-            log!("server.sync: {}", server.sync);
             if server.sync {
                 log!("server synced in resp");
                 self.write_rdb().await.unwrap();
                 server.sync = false;
+                // let mut receiver = sender.subscribe();
+                // while let Ok(f) = receiver.recv().await {
+                //     self.stream.write_all(&f.serialize().as_bytes()).await?;
+                // }
             }
         }
     }
@@ -74,22 +84,26 @@ impl RespHandler {
         &mut self,
         value: Value,
         server: Arc<Mutex<Server>>,
+        sender: Arc<broadcast::Sender<Value>>,
     ) -> Option<Value> {
-        let (command, key, args) = extract_command(value).unwrap();
+        let (command, key, args) = extract_command(value.clone()).unwrap();
+        if command == "SET" {
+            println!("SET command");
+            let response = sender.send(value);
+            log!("response: {:?}", response);
+        }
+        if command == "PSYNC" {
+            let mut receiver = sender.subscribe();
+
+            while let Ok(f) = receiver.recv().await {
+                self.stream
+                    .write_all(&f.serialize().as_bytes())
+                    .await
+                    .unwrap();
+            }
+        }
         log!("command: {}", command);
         if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
-            let key_with_args = vec![
-                Value::BulkString(command.clone()),
-                Value::BulkString(key.clone()),
-                Value::Array(args.clone()),
-            ];
-            log!("key_with_args: {:?}", key_with_args);
-            server
-                .lock()
-                .await
-                .propagate_command(command.as_str(), key_with_args)
-                .await;
-
             command_function.handle(server.clone(), key, args).await
         } else {
             Value::SimpleString("Unknown command".to_string());

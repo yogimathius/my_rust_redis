@@ -1,14 +1,12 @@
-use crate::{log, models::value::Value, server::Server};
-use std::sync::Arc;
+use crate::{log, models::value::Value, server::RedisItem};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 pub async fn keys_handler(
-    server: Arc<Mutex<Server>>,
+    _cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     _key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let _ = server.lock().await;
-
     log!("keys_handler handler {:?}", args);
     // Pseudocode:
     // 1. Extract pattern from args.

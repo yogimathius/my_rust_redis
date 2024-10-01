@@ -1,15 +1,14 @@
-use crate::{models::value::Value, server::Server};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
+use crate::{models::value::Value, server::RedisItem};
+
 pub async fn lpop_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     key: String,
     _args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
-    let mut cache = server.cache.lock().await;
+    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let Value::Array(ref mut list) = item.value {

@@ -5,14 +5,14 @@ use tokio::sync::Mutex;
 
 use crate::handlers::*;
 use crate::models::value::Value;
-use crate::server::Server;
+use crate::server::RedisItem;
 use lazy_static::lazy_static;
 
 #[async_trait]
 pub trait CommandHandler: Send + Sync {
     async fn handle(
         &self,
-        server: Arc<Mutex<Server>>,
+        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
         key: String,
         args: Vec<Value>,
     ) -> Option<Value>;
@@ -20,14 +20,18 @@ pub trait CommandHandler: Send + Sync {
 
 pub struct SyncCommandHandler<F>
 where
-    F: Fn(Arc<Mutex<Server>>, String, Vec<Value>) -> Option<Value> + Send + Sync,
+    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Option<Value>
+        + Send
+        + Sync,
 {
     handler: F,
 }
 
 impl<F> SyncCommandHandler<F>
 where
-    F: Fn(Arc<Mutex<Server>>, String, Vec<Value>) -> Option<Value> + Send + Sync,
+    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Option<Value>
+        + Send
+        + Sync,
 {
     pub fn new(handler: F) -> Self {
         Self { handler }
@@ -37,21 +41,23 @@ where
 #[async_trait]
 impl<F> CommandHandler for SyncCommandHandler<F>
 where
-    F: Fn(Arc<Mutex<Server>>, String, Vec<Value>) -> Option<Value> + Send + Sync,
+    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Option<Value>
+        + Send
+        + Sync,
 {
     async fn handle(
         &self,
-        server: Arc<Mutex<Server>>,
+        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
         key: String,
         args: Vec<Value>,
     ) -> Option<Value> {
-        (self.handler)(server, key, args)
+        (self.handler)(cache, key, args)
     }
 }
 
 pub struct AsyncCommandHandler<F, Fut>
 where
-    F: Fn(Arc<Mutex<Server>>, String, Vec<Value>) -> Fut + Send + Sync,
+    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Option<Value>> + Send,
 {
     handler: F,
@@ -59,7 +65,7 @@ where
 
 impl<F, Fut> AsyncCommandHandler<F, Fut>
 where
-    F: Fn(Arc<Mutex<Server>>, String, Vec<Value>) -> Fut + Send + Sync,
+    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Option<Value>> + Send,
 {
     pub fn new(handler: F) -> Self {
@@ -70,16 +76,16 @@ where
 #[async_trait]
 impl<F, Fut> CommandHandler for AsyncCommandHandler<F, Fut>
 where
-    F: Fn(Arc<Mutex<Server>>, String, Vec<Value>) -> Fut + Send + Sync,
+    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Option<Value>> + Send,
 {
     async fn handle(
         &self,
-        server: Arc<Mutex<Server>>,
+        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
         key: String,
         args: Vec<Value>,
     ) -> Option<Value> {
-        (self.handler)(server, key, args).await
+        (self.handler)(cache, key, args).await
     }
 }
 
@@ -91,11 +97,11 @@ lazy_static! {
         handlers.insert("ECHO", Box::new(SyncCommandHandler::new(echo_handler)));
         handlers.insert("SET", Box::new(AsyncCommandHandler::new(set_handler)));
         handlers.insert("GET", Box::new(AsyncCommandHandler::new(get_handler)));
-        handlers.insert("INFO", Box::new(AsyncCommandHandler::new(info_handler)));
+        // handlers.insert("INFO", Box::new(AsyncCommandHandler::new(info_handler)));
 
         // Replication commands
-        handlers.insert("REPLCONF", Box::new(AsyncCommandHandler::new(replconf_handler)));
-        handlers.insert("PSYNC", Box::new(AsyncCommandHandler::new(psync_handler)));
+        // handlers.insert("REPLCONF", Box::new(AsyncCommandHandler::new(replconf_handler)));
+        // handlers.insert("PSYNC", Box::new(AsyncCommandHandler::new(psync_handler)));
 
         // Server commands
         handlers.insert("FLUSHALL", Box::new(AsyncCommandHandler::new(flushall_handler)));

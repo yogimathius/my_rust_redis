@@ -1,15 +1,18 @@
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::Mutex;
+
 use crate::{
     log,
     models::{redis_type::RedisType, value::Value},
-    server::Server,
+    server::RedisItem,
 };
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
-pub async fn hlen_handler(server: Arc<Mutex<Server>>, key: String, _: Vec<Value>) -> Option<Value> {
-    let server = server.lock().await;
-
-    let mut cache = server.cache.lock().await;
+pub async fn hlen_handler(
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    key: String,
+    _: Vec<Value>,
+) -> Option<Value> {
+    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             log!("Item: {:?}", item);

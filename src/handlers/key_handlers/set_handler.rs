@@ -1,28 +1,26 @@
 use crate::{
     log,
     models::{redis_type::RedisType, value::Value},
-    server::{RedisItem, Server},
+    server::RedisItem,
     utilities::unpack_bulk_str,
 };
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 use std::time::Instant;
 
 pub async fn set_handler(
-    server: Arc<Mutex<Server>>,
+    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let server = server.lock().await;
-
     log!("args {:?}", args);
     let value = Value::BulkString(unpack_bulk_str(args.get(0).unwrap().clone()).unwrap());
     let option = match args.get(1) {
         Some(value) => unpack_bulk_str(value.clone()),
         None => unpack_bulk_str(Value::BulkString("".to_string())),
     };
-    let mut cache = server.cache.lock().await;
+    let mut cache = cache.lock().await;
 
     let expiration: Option<i64> = match option.unwrap().as_str() {
         "EX" | "px" => {
