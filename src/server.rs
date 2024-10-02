@@ -1,3 +1,5 @@
+use regex::Regex;
+
 use crate::{
     log,
     models::{redis_type::RedisType, value::Value},
@@ -346,19 +348,24 @@ impl RedisServer {
         match stream.read(&mut buf) {
             Ok(bytes_read) => {
                 let response = String::from_utf8_lossy(&buf[..bytes_read]);
+
                 log!("Received from master: {}", response);
                 if !response.starts_with("+FULLRESYNC") {
                     panic!("Unexpected response from master: {}", response);
                 }
-                let parts: Vec<&str> = response.trim().split(" ").collect();
-                self.master_replid = parts[1].to_string();
-                match parts[2].parse() {
-                    Ok(offset) => {
-                        self.master_repl_offset = offset;
+                let re = Regex::new(r"^\+FULLRESYNC (\S+) (\d+)\r\n").unwrap();
+                if let Some(captures) = re.captures(&response) {
+                    self.master_replid = captures[1].to_string();
+                    match captures[2].parse() {
+                        Ok(offset) => {
+                            self.master_repl_offset = offset;
+                        }
+                        Err(e) => {
+                            panic!("Error parsing offset: {}", e);
+                        }
                     }
-                    Err(e) => {
-                        panic!("Error parsing offset: {}", e);
-                    }
+                } else {
+                    panic!("Unexpected response format from master: {}", response);
                 }
             }
             Err(e) => {
