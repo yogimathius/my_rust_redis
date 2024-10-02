@@ -1,5 +1,7 @@
-use std::env;
+use crate::{log, models::args::Args};
+use clap::Parser;
 
+#[derive(Parser, Debug, Clone)]
 pub struct Config {
     pub port: String,
     pub replicaof: Option<String>,
@@ -7,25 +9,17 @@ pub struct Config {
 
 impl Config {
     pub fn parse() -> Self {
-        let args: Vec<String> = env::args().collect();
-        let mut config = Config {
+        let args = Args::parse();
+        let mut config: Config = Config {
             port: String::from("6379"),
             replicaof: None,
         };
-
-        for (index, arg) in args.iter().enumerate() {
-            if arg == "--port" {
-                if let Some(port) = args.get(index + 1) {
-                    config.port = port.to_owned();
-                }
-            }
-
-            if arg == "--replicaof" {
-                if let (Some(host), Some(port)) = (args.get(index + 1), args.get(index + 2)) {
-                    config.replicaof = Some(format!("{}:{}", host, port));
-                }
-            }
+        log!("{:?}", args);
+        if let Some(replicaof) = args.replicaof {
+            config.replicaof = Some(replicaof.join(":"));
         }
+
+        config.port = args.port.to_string();
 
         config
     }

@@ -1,8 +1,4 @@
-use crate::{
-    models::value::Value,
-    replication::Role,
-    server::{RedisItem, Server},
-};
+use crate::{models::value::Value, replication::Role, server::RedisItem, server_legacy::Server};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 

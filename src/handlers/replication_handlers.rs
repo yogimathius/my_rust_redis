@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use crate::{log, models::value::Value, replication::Role, server::Server};
+use crate::{log, models::value::Value, replication::Role, server_legacy::Server};
 use uuid::Uuid;
 
 pub async fn replconf_handler(_: Arc<Mutex<Server>>, args: Vec<Value>) -> Option<Value> {

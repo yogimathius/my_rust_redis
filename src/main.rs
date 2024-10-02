@@ -1,35 +1,25 @@
-use std::sync::Arc;
+use clap::Parser;
+use redis_starter_rust::server::RedisServer;
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    port: Option<u16>,
+    #[clap(short, long)]
+    replicaof: Option<String>,
+}
+fn main() {
+    let args = Args::parse();
+    let port = args.port.unwrap_or(6379);
 
-use anyhow::Error;
-use redis_starter_rust::{config::Config, connection::Connection, log, server::Server};
-use tokio::sync::broadcast;
-
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    let config = Config::parse();
-    let server = Server::new(config);
-    let (sender, _rx) = broadcast::channel(16);
-    let sender = Arc::new(sender);
-
-    if let Ok(stream) = server.lock().await.connect_to_master().await {
-        let conn = Connection::new(stream);
-
-        server.lock().await.handshake(conn).await?;
+    let mut server = RedisServer::new(port, args.replicaof);
+    server.run();
+    // Start the event loop
+    loop {
+        server.accept_connections();
+        server.read_messages();
+        server.process_messages();
+        // Sleep for a bit to avoid monopolizing the CPU
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
-
-    let listener = server.lock().await.listen().await?;
-    log!("Listening on port {}", server.lock().await.config.port);
-    while let Ok((stream, _)) = listener.accept().await {
-        let conn = Connection::new(stream);
-        let server = Arc::clone(&server);
-        let sender = Arc::clone(&sender);
-
-        tokio::spawn(async move {
-            if let Err(err) = server.lock().await.handle_connection(conn, sender).await {
-                eprintln!("Failed to handle connection: {err}");
-            }
-        });
-    }
-
-    Ok(())
 }

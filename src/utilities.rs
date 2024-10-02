@@ -37,6 +37,7 @@ pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
     match value {
         Value::Array(a) => {
             let command = unpack_bulk_str(a.first().unwrap().clone()).unwrap();
+            log!("array command {:?}", command);
             let mut iter = a.into_iter();
             if NO_ARG_COMMANDS.contains(command.as_str()) {
                 return Ok((command, "".to_string(), vec![]));
@@ -46,6 +47,7 @@ pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
 
             Ok((command, key, iter.collect()))
         }
+        Value::SimpleString(s) => Ok((s, "".to_string(), vec![])),
         _ => Err(anyhow::anyhow!("Unexpected command format")),
     }
 }
@@ -65,6 +67,7 @@ pub fn unpack_integer(value: Value) -> Result<i64> {
 }
 
 pub fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
+    log!("parse_message {:?}", buffer);
     match buffer[0] as char {
         '+' => parse_simple_string(buffer),
         '*' => parse_array(buffer),

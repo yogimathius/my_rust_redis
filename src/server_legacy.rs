@@ -1,69 +1,84 @@
-use crate::log;
-use crate::models::args::Args;
-use crate::models::redis_type::RedisType;
-use crate::models::value::Value;
-use crate::replica::ReplicaClient;
-use crate::resp::RespHandler;
+use std::{collections::HashMap, sync::Arc};
+
 use anyhow::Error;
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::{
-    io::AsyncWriteExt,
-    sync::{broadcast, Mutex},
+    fs::File,
+    io::AsyncReadExt,
+    net::{TcpListener, TcpStream},
+    sync::{
+        broadcast::{self, Sender},
+        Mutex,
+    },
 };
 
-use std::time::Instant;
-use tokio::net::{TcpListener, TcpStream};
+use crate::{
+    commands::COMMAND_HANDLERS,
+    config::Config,
+    connection::Connection,
+    handlers::{info_handler, set_handler},
+    log,
+    models::value::Value,
+    replication::Replication,
+    server::RedisItem,
+    utilities::extract_command,
+};
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Role {
-    Main,
-    Slave { host: String, port: u16 },
-}
-
-#[derive(Debug, PartialEq)]
-pub struct RedisItem {
-    pub value: Value,
-    pub created_at: Instant,
-    pub expiration: Option<i64>,
-    pub redis_type: RedisType,
-}
-
-#[derive(Clone, Debug)]
 pub struct Server {
+    pub replication: Replication,
+    pub config: Config,
     pub cache: Arc<Mutex<HashMap<String, RedisItem>>>,
-    pub role: Role,
-    pub port: u16,
-    pub sync: bool,
-    pub replica_ports: Arc<Mutex<Vec<u16>>>,
 }
 
 impl Server {
-    pub fn new(args: Args) -> Arc<Mutex<Self>> {
-        let role = match args.replicaof {
-            Some(vec) => {
-                let mut iter = vec.into_iter();
-                let addr = iter.next().unwrap();
-                let _ = iter.next().unwrap();
-                Role::Slave {
-                    host: addr,
-                    port: args.port,
-                }
-            }
-            None => Role::Main,
-        };
-        Arc::new(Mutex::new(Self {
+    pub fn new(config: Config) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Server {
+            replication: Replication::new(&config),
+            config,
             cache: Arc::new(Mutex::new(HashMap::new())),
-            role,
-            port: args.port,
-            sync: false,
-            replica_ports: Arc::new(Mutex::new(Vec::new())),
         }))
     }
 
-    pub async fn connect_to_master(&self, args: Args) -> Result<TcpStream, Error> {
-        if let Some(replicaof) = args.replicaof.clone() {
-            let replicaof = format!("{}:{}", replicaof[0], replicaof[1]);
+    pub async fn listen(&self) -> Result<TcpListener, Error> {
+        let address = format!("127.0.0.1:{}", self.config.port);
+        let listener = TcpListener::bind(address).await?;
+
+        Ok(listener)
+    }
+
+    pub async fn handle_connection(
+        &mut self,
+        mut conn: Connection,
+        sender: Arc<Sender<Value>>,
+    ) -> Result<(), Error> {
+        let sender = Arc::clone(&sender);
+        log!("Handling connection");
+        loop {
+            match conn.read_value().await {
+                Ok(Some(value)) => {
+                    log!("CHECKING value: {:?}", value);
+                    log!("value: {:?}", value);
+                    self.execute_command(self.cache.clone(), value, sender.clone(), &mut conn)
+                        .await
+                        .unwrap();
+                    conn.write_value(Value::SimpleString("OK".to_string()))
+                        .await?;
+                }
+                Ok(None) => {
+                    log!("No value read, continuing to wait for new values");
+                    // Continue the loop to wait for new values
+                }
+                Err(e) => {
+                    log!("Error reading value: {:?}", e);
+                    return Err(e);
+                }
+            }
+        }
+    }
+
+    pub async fn connect_to_master(&self) -> Result<TcpStream, Error> {
+        log!("Connecting to master {:?}", self.config);
+        if let Some(replicaof) = self.config.replicaof.clone() {
+            log!("Connecting to master");
             let stream = TcpStream::connect(replicaof).await?;
             return Ok(stream);
         }
@@ -71,113 +86,132 @@ impl Server {
         Err(Error::msg("no replica of"))
     }
 
-    pub async fn match_replica(&mut self, args: Args) {
-        log!("checking replica args {:?}", args);
-        match args.replicaof {
-            Some(vec) => {
-                log!("vec {:?}", vec);
-                let mut replica = ReplicaClient::new(vec).await.unwrap();
-                replica.send_ping(&self).await.unwrap();
+    pub async fn handshake(&mut self, mut conn: Connection) -> Result<(), Error> {
+        log!("Starting handshake");
+        conn.write_value(Value::SimpleString("PING".to_string()))
+            .await?;
 
-                while replica.handshakes <= 3 {
-                    match replica.read_response().await {
-                        Ok(response) => {
-                            log!("response: {}", response);
-                            log!("replica.handshakes: {}", replica.handshakes);
-                            replica.handshakes += 1;
-                            replica.handle_response(&response, &self).await.unwrap();
-                        }
-                        Err(e) => {
-                            log!("Failed to read from stream: {}", e);
-                        }
-                    }
+        let _response = conn.read_value().await?;
+
+        self.send_replconf_two(&mut conn).await?;
+
+        let _response = conn.read_value().await?;
+
+        self.send_replconf(&mut conn).await?;
+
+        let _response = conn.read_value().await?;
+
+        let psync = Value::Array(vec![
+            Value::BulkString("PSYNC".to_string()),
+            Value::BulkString("?".to_string()),
+            Value::BulkString("-1".to_string()),
+        ]);
+
+        conn.write_value(psync).await?;
+
+        let response: Option<Value> = conn.read_value().await?;
+        log!("Handshake response: {:?}", response);
+        Ok(())
+    }
+
+    pub async fn execute_command(
+        &mut self,
+        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+        value: Value,
+        sender: Arc<broadcast::Sender<Value>>,
+        conn: &mut Connection,
+    ) -> Result<(), Error> {
+        let (command, key, args) = extract_command(value.clone()).unwrap();
+        log!("executing command: {:?}", command);
+        match command.as_str() {
+            "PING" => {
+                let value = Value::SimpleString("PONG".to_string());
+                conn.write_value(value).await.unwrap();
+                Ok(())
+            }
+            "REPLCONF" => {
+                log!("REPLCONF command");
+                let value = Value::SimpleString("OK".to_string());
+                conn.write_value(value).await.unwrap();
+                Ok(())
+            }
+            "PSYNC" => {
+                let value =
+                    Value::SimpleString(format!("FULLRESYNC {} 0", self.replication.master_replid));
+                conn.write_value(value).await.unwrap();
+                self.write_rdb(conn).await.unwrap();
+                let mut conn_clone = conn.clone();
+
+                let receiver = Arc::new(Mutex::new(sender.subscribe()));
+                log!("Subscribing to sender");
+                conn_clone.spawn_pubsub_task(receiver);
+                log!("Done sending values");
+                Ok(())
+            }
+            "SET" => {
+                log!("SET command");
+                let response = sender.send(value);
+                log!("response: {:?}", response);
+                set_handler(cache, key, args).await;
+                Ok(())
+            }
+            "INFO" => {
+                let response = info_handler(self).await;
+                conn.write_value(response.unwrap()).await.unwrap();
+                Ok(())
+            }
+            _ => {
+                if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+                    command_function.handle(cache, key, args).await;
+                    Ok(())
+                } else {
+                    let value = Value::Error("ERR unknown command".to_string());
+                    conn.write_value(value).await.unwrap();
+                    Err(anyhow::Error::msg("Unknown command"))
                 }
-                println!("self {:?}", self);
-                println!("replica {:?}", replica);
-            }
-            None => {}
-        }
-    }
-
-    pub async fn listen(&mut self, port: u16, sender: Arc<broadcast::Sender<Value>>) {
-        let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
-        log!("Listening on Port {}", port);
-
-        loop {
-            let stream = listener.accept().await;
-
-            let server: Arc<Mutex<Server>> = Arc::new(Mutex::new(self.clone()));
-            let sender = Arc::clone(&sender);
-
-            match stream {
-                Ok((stream, _)) => {
-                    log!("stream: {:?}", stream);
-                    let server_clone = Arc::clone(&server);
-
-                    tokio::spawn(async move {
-                        let mut handler = RespHandler::new(stream, server_clone.clone());
-                        if let Err(e) = handler.handle_client(server_clone, sender).await {
-                            log!("Error handling client: {:?}", e);
-                        }
-                    });
-                }
-                Err(e) => {
-                    log!("error: {}", e);
-                }
             }
         }
     }
 
-    pub fn send_ping(&self) -> Option<Value> {
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let msg = vec![Value::BulkString(String::from("PING"))];
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
+    pub async fn write_rdb(&mut self, conn: &mut Connection) -> Result<(), Error> {
+        let mut rdb_buf: Vec<u8> = vec![];
+        log!("Opening dump.rdb");
+        let _ = File::open("rdb")
+            .await
+            .unwrap()
+            .read_to_end(&mut rdb_buf)
+            .await;
+        log!("Read {} bytes from dump.rdb", rdb_buf.len());
+        let contents = hex::decode(&rdb_buf).unwrap();
+        let header = format!("${}\r\n", contents.len());
+        log!("Writing RDB file");
+        log!("header: {:?}", header);
+        conn.write_all(header.as_bytes()).await?;
+        log!("contents: {:?}", contents);
+        conn.write_all(&contents).await?;
+        log!("Wrote RDB file");
+        Ok(())
     }
 
-    pub fn send_psync(&self) -> Option<Value> {
-        log!("Syncing with master");
-        log!("self.role {:?}", self.role);
-
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let msg = vec![
-                    Value::BulkString(String::from("PSYNC")),
-                    Value::BulkString(String::from("?")),
-                    Value::BulkString(String::from("-1")),
-                ];
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
+    pub async fn send_replconf(&mut self, conn: &mut Connection) -> Result<(), Error> {
+        let command = "REPLCONF";
+        let msg = Value::Array(vec![
+            Value::BulkString(String::from(command)),
+            Value::BulkString(String::from("listening-port")),
+            Value::BulkString(self.config.port.to_string()),
+        ]);
+        conn.write_value(msg).await?;
+        Ok(())
     }
 
-    pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let mut msg = vec![Value::BulkString(command.to_string())];
-                for (key, value) in params {
-                    msg.push(Value::BulkString(key.to_string()));
-                    msg.push(Value::BulkString(value.to_string()));
-                }
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
-        }
-    }
-}
-
-impl ToString for Role {
-    fn to_string(&self) -> String {
-        match self {
-            Self::Main => String::from("master"),
-            Self::Slave { host: _, port: _ } => String::from("slave"),
-        }
+    pub async fn send_replconf_two(&mut self, conn: &mut Connection) -> Result<(), Error> {
+        let command = "REPLCONF";
+        let msg = Value::Array(vec![
+            Value::BulkString(String::from(command)),
+            Value::BulkString(String::from("capa")),
+            Value::BulkString(String::from("psync2")),
+        ]);
+        conn.write_value(msg).await?;
+        Ok(())
     }
 }
