@@ -297,6 +297,9 @@ impl RedisServer {
                     let response = format!("${}\r\n", bytes.len());
                     stream.write(response.as_bytes()).unwrap();
                     stream.write(&bytes).unwrap();
+
+                    let ack = "+REPLCONF ACK $1 0\r\n";
+                    stream.write(ack.as_bytes()).unwrap();
                 }
             }
         }
