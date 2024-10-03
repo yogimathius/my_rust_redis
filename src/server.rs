@@ -2,49 +2,16 @@ use regex::Regex;
 
 use crate::{
     log,
-    models::{redis_type::RedisType, value::Value},
+    models::{data_value::DataValue, message::Message, role::Role},
 };
 
 use super::command::{Command, RedisCommand};
 use std::{
     collections::{HashMap, VecDeque},
-    fmt,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    time::Instant,
 };
 
-#[derive(Debug, PartialEq)]
-pub struct RedisItem {
-    pub value: Value,
-    pub created_at: Instant,
-    pub expiration: Option<i64>,
-    pub redis_type: RedisType,
-}
-
-#[derive(Debug)]
-struct DataValue {
-    value: String,
-    expiry: Option<u128>,
-}
-#[derive(Debug)]
-pub struct Message {
-    pub connection: TcpStream,
-    pub command: Command,
-}
-#[derive(Debug, PartialEq)]
-pub enum Role {
-    Master,
-    Slave,
-}
-impl fmt::Display for Role {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Role::Master => write!(f, "master"),
-            Role::Slave => write!(f, "slave"),
-        }
-    }
-}
 pub struct RedisServer {
     port: u16,
     role: Role,
@@ -58,6 +25,7 @@ pub struct RedisServer {
     slaves: HashMap<String, TcpStream>,
     data: HashMap<String, DataValue>,
 }
+
 impl RedisServer {
     pub fn new(port: u16, replicaof: Option<String>) -> Self {
         let role = match replicaof {
@@ -109,8 +77,7 @@ impl RedisServer {
         let listener = self.listener.as_ref().unwrap();
         loop {
             match listener.accept() {
-                Ok(stream) => {
-                    let stream = stream.0;
+                Ok((stream, _)) => {
                     stream.set_nonblocking(true).unwrap();
                     self.connections.push(stream);
                 }
@@ -299,6 +266,7 @@ impl RedisServer {
                     stream.write(&bytes).unwrap();
 
                     let ack = "+REPLCONF ACK $1 0\r\n";
+                    log!("Sending ACK to master: {}", ack);
                     stream.write(ack.as_bytes()).unwrap();
                 }
             }

@@ -3,22 +3,36 @@ use std::sync::Arc;
 use anyhow::Error;
 use redis_starter_rust::{config::Config, connection::Connection, log, server::Server};
 use tokio::sync::broadcast;
-struct Args {
-    #[clap(short, long)]
-    port: Option<u16>,
-    #[clap(short, long)]
-    replicaof: Option<String>,
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let args = Args::parse();
-    let port = args.port.unwrap_or(6379);
-    let server = Server::new(port, args.replicaof);
+    let config = Config::parse();
+    log!("Config: {:?}", config);
+    let server = Server::new(config.clone());
+    let (sender, _rx) = broadcast::channel(16);
+    let sender = Arc::new(sender);
 
     log!("Connecting to master");
-    server.run();
+    if let Some(replicaof) = config.replicaof.clone() {
+        let conn = Connection::new(Some(replicaof), None).await;
+        log!("Handshaking with master");
+        let handshake_result = {
+            let mut server = server.lock().await;
+            server.handshake(conn).await
+        };
 
+        if let Err(e) = handshake_result {
+            eprintln!("Handshake failed: {e}");
+        } else {
+            log!("Handshake successful");
+        }
+    }
+
+    let listener = {
+        let server = server.lock().await;
+        log!("Listening on port {}", server.config.port);
+        server.listen().await?
+    };
     loop {
         match listener.accept().await {
             Ok((stream, _)) => {

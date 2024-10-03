@@ -4,8 +4,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::handlers::*;
-use crate::models::redis_item::RedisItem;
 use crate::models::value::Value;
+use crate::server::RedisItem;
 use lazy_static::lazy_static;
 
 #[async_trait]

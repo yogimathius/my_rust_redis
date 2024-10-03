@@ -1,7 +1,7 @@
 use anyhow::Error;
 use bytes::BytesMut;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt, BufWriter},
     net::TcpStream,
     sync::{broadcast, Mutex},
 };
@@ -9,9 +9,8 @@ use tokio::{
 use crate::{log, models::value::Value, utilities::parse_message};
 use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct Connection {
-    pub stream: TcpStream,
+    stream: Arc<Mutex<BufWriter<TcpStream>>>,
     buffer: BytesMut,
 }
 
@@ -19,20 +18,20 @@ impl Connection {
     pub async fn new(replicaof: Option<String>, stream: Option<TcpStream>) -> Self {
         if let Some(stream) = stream {
             Connection {
-                stream,
+                stream: Arc::new(Mutex::new(BufWriter::new(stream))),
                 buffer: BytesMut::with_capacity(1024),
             }
         } else {
             let stream = TcpStream::connect(replicaof.unwrap()).await.unwrap();
             Connection {
-                stream,
+                stream: Arc::new(Mutex::new(BufWriter::new(stream))),
                 buffer: BytesMut::with_capacity(1024),
             }
         }
     }
 
     pub async fn read_value(&mut self) -> Result<Option<Value>, Error> {
-        let bytes_read = self.stream.read_buf(&mut self.buffer).await?;
+        let bytes_read = self.stream.lock().await.read_buf(&mut self.buffer).await?;
         log!("bytes_read {:?}", bytes_read);
         if bytes_read == 0 {
             return Ok(None);
@@ -43,29 +42,12 @@ impl Connection {
         Ok(Some(v))
     }
 
-    pub async fn expect_read(&mut self, expected: &str) {
-        match self.stream.read_buf(&mut self.buffer).await {
-            Ok(bytes_read) => {
-                let response = std::str::from_utf8(&self.buffer[..bytes_read]).unwrap();
-                let trimmed = response.trim();
-                if trimmed != expected {
-                    panic!(
-                        "Unexpected response from master: {} (expected {})",
-                        trimmed, expected
-                    );
-                }
-            }
-            Err(e) => {
-                panic!("Error reading from master: {}", e);
-            }
-        }
-    }
-
     pub async fn write_value(&mut self, value: Value) -> Result<(), Error> {
         log!("Writing value {:?}", value.clone().serialize().as_bytes());
         {
-            self.stream.write_all(value.serialize().as_bytes()).await?;
-            self.stream.flush().await?;
+            let mut stream = self.stream.lock().await;
+            stream.write_all(value.serialize().as_bytes()).await?;
+            stream.flush().await?;
         }
         Ok(())
     }
@@ -74,17 +56,19 @@ impl Connection {
         log!("Writing bulk {:?}", s);
         let l = s.len().to_string();
         {
-            self.stream.write_u8(b'$').await?;
-            self.stream.write_all(l.as_bytes()).await?;
-            self.stream.write_all(b"\r\n").await?;
-            self.stream.write_all(s.as_bytes()).await?;
-            self.stream.write_all(b"\r\n").await?;
+            let mut stream = self.stream.lock().await;
+            stream.write_u8(b'$').await?;
+            stream.write_all(l.as_bytes()).await?;
+            stream.write_all(b"\r\n").await?;
+            stream.write_all(s.as_bytes()).await?;
+            stream.write_all(b"\r\n").await?;
         }
         Ok(())
     }
 
     pub async fn write_all(&mut self, b: &[u8]) -> Result<(), Error> {
-        self.stream.write_all(b).await?;
+        let mut stream = self.stream.lock().await;
+        stream.write_all(b).await?;
         Ok(())
     }
 
@@ -106,7 +90,7 @@ impl Connection {
 impl Clone for Connection {
     fn clone(&self) -> Self {
         Connection {
-            stream: self.stream,
+            stream: Arc::clone(&self.stream),
             buffer: BytesMut::with_capacity(1024),
         }
     }
