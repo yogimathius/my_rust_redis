@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use regex::Regex;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -122,34 +123,22 @@ impl Server {
 
     async fn read_messages_from(stream: &Arc<Mutex<TcpStream>>) -> (bool, Vec<Command>) {
         log!("Reading messages from client...");
-        let mut buf = [0; 1024];
+        let mut buf = BytesMut::with_capacity(1024);
         let mut new_commands: Vec<Command> = Vec::new();
         let mut should_close = false;
 
         let mut stream = stream.lock().await;
 
-        match stream.read(&mut buf).await {
+        match stream.read_buf(&mut buf).await {
             Ok(0) => {
                 log!("Read 0 bytes, closing connection");
                 should_close = true;
             }
             Ok(bytes_read) => {
                 log!("Read {} bytes", bytes_read);
-                let input = String::from_utf8_lossy(&buf[..bytes_read]);
-                log!("Received input: {}", input);
-                if input.starts_with("+") {
-                    log!("Input starts with '+', continuing...");
-                } else {
-                    let commands: Vec<Command> = input
-                        .split("*")
-                        .filter(|s| !s.is_empty())
-                        .map(|s| Command::parse(format!("*{}", s).as_str()))
-                        .filter_map(Result::ok)
-                        .collect();
-                    log!("Parsed commands: {:?}", commands);
-                    new_commands.extend(commands);
-                    log!("Added commands to new_commands: {:?}", new_commands);
-                }
+                let command = Command::parse(&mut buf).await.unwrap();
+                new_commands.extend(vec![command]);
+                log!("Added commands to new_commands: {:?}", new_commands);
             }
             Err(e) => {
                 log!("Error reading from stream: {:?}", e);
@@ -198,7 +187,7 @@ impl Server {
                         for (_port, slave) in &self.replications {
                             let mut slave_stream = slave.lock().await;
                             slave_stream
-                                .write_all(message.command.raw.as_bytes())
+                                .write_all(message.command.raw.as_ref())
                                 .await
                                 .unwrap();
                         }
