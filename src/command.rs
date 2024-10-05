@@ -1,4 +1,6 @@
 use core::panic;
+
+use crate::log;
 #[derive(Debug)]
 pub enum RedisCommand {
     Ping,
@@ -20,7 +22,7 @@ impl Command {
         Command { command, raw }
     }
     pub fn parse(input: &str) -> Command {
-        println!("Parsing command: {}", input);
+        log!("Parsing command: {}", input);
         let mut lines = input.split("\r\n");
         // The first line is the number of parameters
         lines.next();
@@ -29,7 +31,10 @@ impl Command {
         // The third line is the actual command
         let command = lines.next().unwrap();
         match command.to_uppercase().as_str() {
-            "PING" => Command::new(RedisCommand::Ping, format!("{}", input)),
+            "PING" => {
+                log!("Parsing PING command");
+                Command::new(RedisCommand::Ping, format!("{}", input))
+            }
             "GET" => {
                 lines.next(); // Skip the length of the key
                 let key = lines.next().unwrap();
