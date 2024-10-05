@@ -1,15 +1,13 @@
 use regex::Regex;
 use std::collections::{HashMap, VecDeque};
-use std::io::{self};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
-use tokio::time::timeout;
 
 use crate::command::{Command, RedisCommand};
 use crate::log;
+use crate::models::connection_state::ConnectionState;
 use crate::models::data_value::DataValue;
 use crate::models::message::Message;
 use crate::models::role::Role;
@@ -18,13 +16,13 @@ pub struct Server {
     port: u16,
     pub role: Role,
     master_addr: Option<String>,
-    master_stream: Option<Arc<Mutex<TcpStream>>>,
     master_replid: String,
     master_repl_offset: u32,
-    listener: Option<TcpListener>,
-    connections: Vec<Arc<Mutex<TcpStream>>>,
+    pub listener: Option<Arc<TcpListener>>,
+    pub connections: Vec<ConnectionState>,
+    master_connection: Option<ConnectionState>,
     messages: VecDeque<Message>,
-    slaves: HashMap<String, Arc<Mutex<TcpStream>>>,
+    replications: HashMap<String, Arc<Mutex<TcpStream>>>,
     data: HashMap<String, DataValue>,
 }
 
@@ -48,13 +46,13 @@ impl Server {
             port,
             role,
             master_addr,
-            master_stream: None,
+            master_connection: None,
             master_replid,
             master_repl_offset: 0,
             listener: None,
             connections: Vec::new(),
             messages: VecDeque::new(),
-            slaves: HashMap::new(),
+            replications: HashMap::new(),
             data: HashMap::new(),
         }
     }
@@ -64,26 +62,23 @@ impl Server {
             self.connect_to_master().await;
         }
 
-        match TcpListener::bind(format!("127.0.0.1:{}", self.port)).await {
-            Ok(listener) => {
-                self.listener = Some(listener);
-            }
-            Err(e) => {
-                panic!("Error binding to port: {}", e);
-            }
-        }
+        let listener = match TcpListener::bind(format!("127.0.0.1:{}", self.port)).await {
+            Ok(listener) => listener,
+            Err(e) => panic!("Error binding to port: {}", e),
+        };
+
+        self.listener = Some(Arc::new(listener)); // Assign the listener
         log!("Listening on 127.0.0.1:{}...", self.port);
     }
 
     pub async fn accept_connections(&mut self) {
+        log!("Accepting connections...");
         let listener = self.listener.as_ref().unwrap();
         loop {
             match listener.accept().await {
                 Ok((stream, _)) => {
-                    self.connections.push(Arc::new(Mutex::new(stream)));
-                }
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    break;
+                    let connection_state = ConnectionState::new(stream);
+                    self.connections.push(connection_state);
                 }
                 Err(e) => {
                     panic!("Error accepting connection: {}", e);
@@ -95,29 +90,30 @@ impl Server {
 
     pub async fn read_messages(&mut self) {
         let mut closed_indices = Vec::new();
-        for (index, stream) in self.connections.iter_mut().enumerate() {
-            let (should_close, new_commands) = Server::read_messages_from(stream).await;
+        for (index, connection) in self.connections.iter_mut().enumerate() {
+            let (should_close, new_commands) = Server::read_messages_from(&connection.stream).await;
             if should_close {
                 closed_indices.push(index);
             }
             log!("Received {} commands from client", new_commands.len());
             self.messages
                 .extend(new_commands.into_iter().map(|command| Message {
-                    connection: Arc::clone(stream),
+                    connection: Arc::clone(&connection.stream),
                     command,
                 }));
         }
         for &index in closed_indices.iter().rev() {
             self.connections.remove(index);
         }
-        if let Some(master_stream) = self.master_stream.as_mut() {
-            let (_should_close, new_commands) = Server::read_messages_from(master_stream).await;
+        if let Some(master_connection) = self.master_connection.as_mut() {
+            let (_should_close, new_commands) =
+                Server::read_messages_from(&master_connection.stream).await;
             log!("Received {} commands from master", new_commands.len());
             if new_commands.len() > 0 {
                 log!("Received {} commands from master", new_commands.len());
                 self.messages
                     .extend(new_commands.into_iter().map(|command| Message {
-                        connection: Arc::clone(master_stream),
+                        connection: Arc::clone(&master_connection.stream),
                         command,
                     }));
             }
@@ -125,20 +121,19 @@ impl Server {
     }
 
     async fn read_messages_from(stream: &Arc<Mutex<TcpStream>>) -> (bool, Vec<Command>) {
+        log!("Reading messages from client...");
         let mut buf = [0; 1024];
         let mut new_commands: Vec<Command> = Vec::new();
         let mut should_close = false;
 
         let mut stream = stream.lock().await;
 
-        let result = timeout(Duration::from_secs(10), stream.read(&mut buf)).await;
-
-        match result {
-            Ok(Ok(0)) => {
+        match stream.read(&mut buf).await {
+            Ok(0) => {
                 log!("Read 0 bytes, closing connection");
                 should_close = true;
             }
-            Ok(Ok(bytes_read)) => {
+            Ok(bytes_read) => {
                 log!("Read {} bytes", bytes_read);
                 let input = String::from_utf8_lossy(&buf[..bytes_read]);
                 log!("Received input: {}", input);
@@ -149,21 +144,15 @@ impl Server {
                         .split("*")
                         .filter(|s| !s.is_empty())
                         .map(|s| Command::parse(format!("*{}", s).as_str()))
+                        .filter_map(Result::ok)
                         .collect();
                     log!("Parsed commands: {:?}", commands);
                     new_commands.extend(commands);
                     log!("Added commands to new_commands: {:?}", new_commands);
                 }
             }
-            Ok(Err(e)) if e.kind() == io::ErrorKind::WouldBlock => {
-                log!("Would block, breaking loop");
-            }
-            Ok(Err(e)) => {
+            Err(e) => {
                 log!("Error reading from stream: {:?}", e);
-                should_close = true;
-            }
-            Err(_) => {
-                log!("Timeout while reading from stream");
                 should_close = true;
             }
         }
@@ -176,8 +165,10 @@ impl Server {
         while let Some(message) = self.messages.pop_front() {
             log!("Processing message: {:?}", message);
             let mut stream = message.connection.lock().await;
+
             match message.command.command {
                 RedisCommand::Ping => {
+                    log!("Received PING command");
                     let response = "+PONG\r\n";
                     stream.write_all(response.as_bytes()).await.unwrap();
                 }
@@ -204,7 +195,7 @@ impl Server {
                     }
                     self.data.insert(key, datavalue);
                     if self.role == Role::Master {
-                        for (_port, slave) in &self.slaves {
+                        for (_port, slave) in &self.replications {
                             let mut slave_stream = slave.lock().await;
                             slave_stream
                                 .write_all(message.command.raw.as_bytes())
@@ -259,8 +250,10 @@ impl Server {
                     stream.write_all(response.as_bytes()).await.unwrap();
                 }
                 RedisCommand::ReplConf(key, value) => {
+                    log!("Received REPLCONF command: {} {}", key, value);
                     if key == "listening-port" {
-                        self.slaves.insert(value, Arc::clone(&message.connection));
+                        self.replications
+                            .insert(value, Arc::clone(&message.connection));
                     }
                     let response = "+OK\r\n";
                     stream.write_all(response.as_bytes()).await.unwrap();
@@ -278,9 +271,15 @@ impl Server {
                     stream.write_all(response.as_bytes()).await.unwrap();
                     stream.write_all(&bytes).await.unwrap();
 
-                    let ack = "+REPLCONF ACK $1 0\r\n";
+                    let ack = "+REPLCONF GETACK $1 0\r\n";
                     log!("Sending ACK to master: {}", ack);
                     stream.write_all(ack.as_bytes()).await.unwrap();
+                }
+                RedisCommand::ReplConfGetAck => {
+                    // Send REPLCONF ACK 0
+                    let response = "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n";
+                    let mut stream = message.connection.lock().await;
+                    stream.write_all(response.as_bytes()).await.unwrap();
                 }
             }
         }
@@ -290,60 +289,75 @@ impl Server {
         let addr = self.master_addr.as_ref().unwrap();
         match TcpStream::connect(addr).await {
             Ok(stream) => {
-                self.master_stream = Some(Arc::new(Mutex::new(stream)));
+                let connection = ConnectionState::new(stream);
+                self.master_connection = Some(connection);
             }
             Err(e) => {
                 panic!("Error connecting to master: {}", e);
             }
         }
-        let stream = self.master_stream.as_ref().unwrap();
+        let connection = self.master_connection.as_ref().unwrap();
         log!("Sending PING to master...");
         let message = format!("*1\r\n$4\r\nPING\r\n");
-        match stream.lock().await.write_all(message.as_bytes()).await {
+        match connection
+            .stream
+            .lock()
+            .await
+            .write_all(message.as_bytes())
+            .await
+        {
             Ok(_) => {}
             Err(e) => {
                 panic!("Error PINGing master: {}", e);
             }
         }
-        self.expect_read(&stream, "+PONG").await;
+        self.expect_read(&connection.stream, "+PONG").await;
         log!("Sending REPLCONF listening-port to master...");
         let message = format!(
             "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
             self.port.to_string().len(),
             self.port
         );
-        stream
+        connection
+            .stream
             .lock()
             .await
             .write_all(message.as_bytes())
             .await
             .unwrap();
-        self.expect_read(&stream, "+OK").await;
+        log!("Checking OK...");
+        self.expect_read(&connection.stream, "+OK").await;
         let message = format!("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
-        stream
+        connection
+            .stream
             .lock()
             .await
             .write_all(message.as_bytes())
             .await
             .unwrap();
-        self.expect_read(&stream, "+OK").await;
+        self.expect_read(&connection.stream, "+OK").await;
+        log!("Sending PSYNC to master...");
         let message = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-        stream
+        connection
+            .stream
             .lock()
             .await
             .write_all(message.as_bytes())
             .await
             .unwrap();
         let mut buf = [0; 1024];
-        match stream.lock().await.read(&mut buf).await {
+        log!("Reading from master...");
+        match connection.stream.lock().await.read(&mut buf).await {
             Ok(bytes_read) => {
                 let response = String::from_utf8_lossy(&buf[..bytes_read]);
-                log!("Received from master: {}", response);
+                log!("==========Received from master: {}============", response);
                 if !response.starts_with("+FULLRESYNC") {
+                    log!("Unexpected response from master: {}", response);
                     panic!("Unexpected response from master: {}", response);
                 }
                 let re = Regex::new(r"^\+FULLRESYNC (\S+) (\d+)\r\n").unwrap();
                 if let Some(captures) = re.captures(&response) {
+                    log!("Captures: {:?}", captures);
                     self.master_replid = captures[1].to_string();
                     match captures[2].parse() {
                         Ok(offset) => {
@@ -361,7 +375,7 @@ impl Server {
                 panic!("Error reading from master: {}", e);
             }
         }
-        match stream.lock().await.read(&mut buf).await {
+        match connection.stream.lock().await.read(&mut buf).await {
             Ok(_) => {
                 // TODO: Parse response and load RDB file into datastore
             }
@@ -384,6 +398,7 @@ impl Server {
                         trimmed, expected
                     );
                 }
+                log!("Received expected response from master: {}", expected);
             }
             Err(e) => {
                 panic!("Error reading from master: {}", e);

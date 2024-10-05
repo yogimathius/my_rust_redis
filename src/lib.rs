@@ -1,13 +1,9 @@
-pub mod command;
-// pub mod commands;
 pub mod app_state;
-// pub mod handlers;
+pub mod command;
 pub mod models;
-// pub mod replication;
 pub mod server;
-pub mod writer;
-// pub mod server_legacy;
 pub mod utilities;
+pub mod writer;
 
 pub mod my_redis_server {
     // pub use crate::commands::*;
