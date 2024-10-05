@@ -50,7 +50,7 @@ pub fn extract_command(value: &Value) -> Result<(String, Vec<Value>)> {
 
 pub fn unpack_bulk_str(value: &Value) -> Result<String> {
     match value {
-        Value::BulkString(s) => Ok(s.to_string()),
+        Value::BulkString(s) => Ok(std::str::from_utf8(s).unwrap().to_string()),
         _ => Err(anyhow::anyhow!("Expected bulk string")),
     }
 }
@@ -63,10 +63,11 @@ pub fn unpack_integer(value: Value) -> Result<i64> {
 }
 
 pub fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
+    log!("Parsing message in parse_message: {:?}", buffer);
     match buffer[0] as char {
         '+' => parse_simple_string(buffer),
         '*' => parse_array(buffer),
-        '$' => parse_bulk_string(buffer),
+        '$' => parse_bulk_string(&buffer),
         _ => Err(anyhow::anyhow!("Unknown value type {:?}", buffer)),
     }
 }
@@ -102,24 +103,27 @@ fn parse_array(buffer: BytesMut) -> Result<(Value, usize)> {
     return Ok((Value::Array(items), bytes_consumed));
 }
 
-fn parse_bulk_string(buffer: BytesMut) -> Result<(Value, usize)> {
-    let (bulk_str_len, bytes_consumed) = if let Some((line, len)) = read_until_crlf(&buffer[1..]) {
-        let bulk_str_len = parse_int(line)?;
+fn parse_bulk_string(buffer: &[u8]) -> Result<(Value, usize), anyhow::Error> {
+    let mut idx = 1; // Skip the '$' character
+    let (length_line, len_consumed) = read_until_crlf(&buffer[idx..]).unwrap();
+    idx += len_consumed;
 
-        (bulk_str_len, len + 1)
-    } else {
-        return Err(anyhow::anyhow!("Invalid array format {:?}", buffer));
-    };
+    let bulk_length: isize = parse_int(length_line).unwrap().try_into().unwrap();
+    if bulk_length < 0 {
+        return Ok((Value::NullBulkString, idx));
+    }
+    let bulk_length = bulk_length as usize;
 
-    let end_of_bulk_str = bytes_consumed + bulk_str_len as usize;
-    let total_parsed = end_of_bulk_str + 2;
+    let total_needed = idx + bulk_length + 2; // +2 for '\r\n'
+    if buffer.len() < total_needed {
+        return Err(anyhow::anyhow!("Incomplete"));
+    }
 
-    Ok((
-        Value::BulkString(String::from_utf8(
-            buffer[bytes_consumed..end_of_bulk_str].to_vec(),
-        )?),
-        total_parsed,
-    ))
+    let data = &buffer[idx..idx + bulk_length];
+    idx += bulk_length + 2; // Move past data and '\r\n'
+
+    // Always store data as bytes
+    Ok((Value::BulkString(data.to_vec()), idx))
 }
 
 fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
@@ -191,12 +195,12 @@ pub fn should_set_expiry(item: &RedisItem, expiration: i64, option: String) -> b
     }
 }
 
-pub fn extract_args(args: Vec<Value>) -> (String, Option<String>, Option<String>, Vec<Value>) {
+pub fn extract_args(args: Vec<Value>) -> (Vec<u8>, Option<Vec<u8>>, Option<Vec<u8>>, Vec<Value>) {
     let mut iter = args.into_iter();
 
     let key = match iter.next() {
         Some(Value::BulkString(s)) => s,
-        _ => "".to_string(),
+        _ => "".to_string().into(),
     };
 
     let arg1 = match iter.next() {

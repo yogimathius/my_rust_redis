@@ -1,3 +1,4 @@
+// use bytes::Buf;
 use bytes::BytesMut;
 use regex::Regex;
 use std::collections::{HashMap, VecDeque};
@@ -12,6 +13,8 @@ use crate::models::connection_state::ConnectionState;
 use crate::models::data_value::DataValue;
 use crate::models::message::Message;
 use crate::models::role::Role;
+// use crate::models::value::Value;
+// use crate::utilities::{extract_command, parse_message, unpack_bulk_str};
 
 pub struct Server {
     port: u16,
@@ -78,6 +81,8 @@ impl Server {
         loop {
             match listener.accept().await {
                 Ok((stream, _)) => {
+                    log!("Accepted connection");
+                    log!("Stream: {:?}", stream);
                     let connection_state = ConnectionState::new(stream);
                     self.connections.push(connection_state);
                 }
@@ -248,6 +253,7 @@ impl Server {
                     stream.write_all(response.as_bytes()).await.unwrap();
                 }
                 RedisCommand::Psync(_id, _offset) => {
+                    log!("id: {}, offset: {}", _id, _offset);
                     let response = "+FULLRESYNC 8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb 0\r\n";
                     stream.write_all(response.as_bytes()).await.unwrap();
                     let rdb = "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2";
@@ -259,16 +265,18 @@ impl Server {
                     let response = format!("${}\r\n", bytes.len());
                     stream.write_all(response.as_bytes()).await.unwrap();
                     stream.write_all(&bytes).await.unwrap();
-
-                    let ack = "+REPLCONF GETACK $1 0\r\n";
-                    log!("Sending ACK to master: {}", ack);
-                    stream.write_all(ack.as_bytes()).await.unwrap();
                 }
                 RedisCommand::ReplConfGetAck => {
                     // Send REPLCONF ACK 0
                     let response = "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n";
                     let mut stream = message.connection.lock().await;
                     stream.write_all(response.as_bytes()).await.unwrap();
+                }
+                RedisCommand::FullResync(_id, _offset) => {
+                    log!("id: {}, offset: {}", _id, _offset);
+                }
+                RedisCommand::Rdb(_bytes) => {
+                    log!("Received RDB");
                 }
             }
         }
@@ -334,42 +342,35 @@ impl Server {
             .write_all(message.as_bytes())
             .await
             .unwrap();
-        let mut buf = [0; 1024];
+        let mut buf = BytesMut::with_capacity(1024);
         log!("Reading from master...");
-        match connection.stream.lock().await.read(&mut buf).await {
-            Ok(bytes_read) => {
-                let response = String::from_utf8_lossy(&buf[..bytes_read]);
-                log!("==========Received from master: {}============", response);
-                if !response.starts_with("+FULLRESYNC") {
-                    log!("Unexpected response from master: {}", response);
-                    panic!("Unexpected response from master: {}", response);
+        loop {
+            match connection.stream.lock().await.read_buf(&mut buf).await {
+                Ok(0) => {
+                    log!("Read 0 bytes, closing connection");
+                    // should_close = true;
                 }
-                let re = Regex::new(r"^\+FULLRESYNC (\S+) (\d+)\r\n").unwrap();
-                if let Some(captures) = re.captures(&response) {
+                Ok(bytes_read) => {
+                    log!("Read {} bytes", bytes_read);
+                    log!("Buffer: {:?}", buf);
+                    // parse fullresync string and rdb
+                    let fullresync = Regex::new(r"\+FULLRESYNC ([a-z0-9]+) (\d+)\r\n").unwrap();
+                    let captures = fullresync.captures(std::str::from_utf8(&buf).unwrap());
                     log!("Captures: {:?}", captures);
-                    self.master_replid = captures[1].to_string();
-                    match captures[2].parse() {
-                        Ok(offset) => {
-                            self.master_repl_offset = offset;
-                        }
-                        Err(e) => {
-                            panic!("Error parsing offset: {}", e);
-                        }
+                    if let Some(captures) = captures {
+                        let id = captures.get(1).unwrap().as_str();
+                        let offset = captures.get(2).unwrap().as_str();
+                        log!("id: {}, offset: {}", id, offset);
+
+                        // expect rdb
+                        log!("captures: {:?}", captures);
+                        break;
                     }
-                } else {
-                    panic!("Unexpected response format from master: {}", response);
                 }
-            }
-            Err(e) => {
-                panic!("Error reading from master: {}", e);
-            }
-        }
-        match connection.stream.lock().await.read(&mut buf).await {
-            Ok(_) => {
-                // TODO: Parse response and load RDB file into datastore
-            }
-            Err(e) => {
-                panic!("Error reading from master: {}", e);
+                Err(e) => {
+                    log!("Error reading from stream: {:?}", e);
+                    // should_close = true;
+                }
             }
         }
     }
