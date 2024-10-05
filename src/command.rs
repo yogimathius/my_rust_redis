@@ -1,5 +1,3 @@
-use core::panic;
-
 use crate::log;
 #[derive(Debug)]
 pub enum RedisCommand {
@@ -10,8 +8,10 @@ pub enum RedisCommand {
     Command,
     Info,
     ReplConf(String, String),
+    ReplConfGetAck, // New variant
     Psync(String, i32),
 }
+
 #[derive(Debug)]
 pub struct Command {
     pub command: RedisCommand,
@@ -21,83 +21,139 @@ impl Command {
     pub fn new(command: RedisCommand, raw: String) -> Self {
         Command { command, raw }
     }
-    pub fn parse(input: &str) -> Command {
+
+    pub fn parse(input: &str) -> Result<Command, String> {
         log!("Parsing command: {}", input);
-        let mut lines = input.split("\r\n");
-        // The first line is the number of parameters
-        lines.next();
-        // The second line is the length of the command
-        lines.next();
-        // The third line is the actual command
-        let command = lines.next().unwrap();
-        match command.to_uppercase().as_str() {
+
+        let elements = parse_resp_array(input)?;
+        if elements.is_empty() {
+            return Err("Empty command".to_string());
+        }
+
+        let command = elements[0].to_uppercase();
+        match command.as_str() {
             "PING" => {
                 log!("Parsing PING command");
-                Command::new(RedisCommand::Ping, format!("{}", input))
+                Ok(Command::new(RedisCommand::Ping, input.to_string()))
             }
             "GET" => {
-                lines.next(); // Skip the length of the key
-                let key = lines.next().unwrap();
-                Command::new(RedisCommand::Get(key.to_string()), format!("{}", input))
+                if elements.len() != 2 {
+                    return Err("GET command requires 1 argument".to_string());
+                }
+                let key = elements[1].clone();
+                Ok(Command::new(RedisCommand::Get(key), input.to_string()))
             }
             "SET" => {
-                lines.next(); // Skip the length of the key
-                let key = lines.next().unwrap();
-                lines.next(); // Skip the length of the value
-                let value = lines.next().unwrap();
+                if elements.len() < 3 {
+                    return Err("SET command requires at least 2 arguments".to_string());
+                }
+                let key = elements[1].clone();
+                let value = elements[2].clone();
+
                 let mut expiry_flag: Option<String> = None;
                 let mut expiry_time: Option<u32> = None;
-                // This is the length of the flag
-                match lines.next() {
-                    Some(flag_len) => {
-                        if !flag_len.is_empty() {
-                            expiry_flag = Some(lines.next().unwrap().to_string());
-                            lines.next(); // Skip the length of the value
-                            match lines.next() {
-                                Some(time_str) => {
-                                    expiry_time = Some(time_str.parse().unwrap());
-                                }
-                                None => {}
-                            }
-                        }
-                    }
-                    None => {}
+
+                if elements.len() >= 5 {
+                    expiry_flag = Some(elements[3].clone());
+                    expiry_time = Some(elements[4].parse().map_err(|_| "Invalid expiry time")?);
                 }
-                Command::new(
-                    RedisCommand::Set(key.to_string(), value.to_string(), expiry_flag, expiry_time),
-                    format!("{}", input),
-                )
+
+                Ok(Command::new(
+                    RedisCommand::Set(key, value, expiry_flag, expiry_time),
+                    input.to_string(),
+                ))
             }
             "ECHO" => {
-                lines.next(); // Skip the length of the value
-                let value = lines.next().unwrap();
-                Command::new(RedisCommand::Echo(value.to_string()), format!("{}", input))
+                if elements.len() != 2 {
+                    return Err("ECHO command requires 1 argument".to_string());
+                }
+                let message = elements[1].clone();
+                Ok(Command::new(RedisCommand::Echo(message), input.to_string()))
             }
-            "COMMAND" => Command::new(RedisCommand::Command, format!("{}", input)),
-            "INFO" => Command::new(RedisCommand::Info, format!("{}", input)),
+            "COMMAND" => Ok(Command::new(RedisCommand::Command, input.to_string())),
+            "INFO" => Ok(Command::new(RedisCommand::Info, input.to_string())),
             "REPLCONF" => {
-                lines.next(); // Skip the length of the key
-                let key = lines.next().unwrap();
-                lines.next(); // Skip the length of the value
-                let value = lines.next().unwrap();
-                Command::new(
-                    RedisCommand::ReplConf(key.to_string(), value.to_string()),
-                    format!("*{}", input),
-                )
+                if elements.len() >= 2 {
+                    let subcommand = elements[1].to_uppercase();
+                    match subcommand.as_str() {
+                        "LISTENING-PORT" | "CAPA" | "ACK" => {
+                            if elements.len() != 3 {
+                                return Err("REPLCONF subcommand requires an argument".to_string());
+                            }
+                            let argument = elements[2].clone();
+                            Ok(Command::new(
+                                RedisCommand::ReplConf(subcommand, argument),
+                                input.to_string(),
+                            ))
+                        }
+                        "GETACK" => {
+                            // REPLCONF GETACK has no additional arguments
+                            Ok(Command::new(
+                                RedisCommand::ReplConfGetAck,
+                                input.to_string(),
+                            ))
+                        }
+                        _ => Err(format!("Unknown REPLCONF subcommand: {}", subcommand)),
+                    }
+                } else {
+                    Err("REPLCONF requires at least one subcommand".to_string())
+                }
             }
             "PSYNC" => {
-                lines.next(); // Skip the length of the replid
-                let replid = lines.next().unwrap();
-                lines.next(); // Skip the length of the offset
-                let offset = lines.next().unwrap();
-                Command::new(
-                    RedisCommand::Psync(replid.to_string(), offset.parse().unwrap()),
-                    format!("{}", input),
-                )
+                if elements.len() != 3 {
+                    return Err("PSYNC command requires 2 arguments".to_string());
+                }
+                let replid = elements[1].clone();
+                let offset = elements[2]
+                    .parse()
+                    .map_err(|_| "Invalid PSYNC offset".to_string())?;
+                Ok(Command::new(
+                    RedisCommand::Psync(replid, offset),
+                    input.to_string(),
+                ))
             }
-            _ => {
-                panic!("Unknown command: {}", command);
-            }
+            _ => Err(format!("Unknown command: {}", command)),
         }
     }
+}
+
+fn parse_resp_array(input: &str) -> Result<Vec<String>, String> {
+    let mut lines = input.lines();
+    let first_line = lines.next().ok_or("Empty input")?;
+    if !first_line.starts_with('*') {
+        return Err("Not a RESP array".to_string());
+    }
+
+    let num_elements: usize = first_line[1..]
+        .parse()
+        .map_err(|_| "Invalid array length")?;
+    let mut elements = Vec::with_capacity(num_elements);
+
+    while let Some(line) = lines.next() {
+        if line.starts_with('$') {
+            let bulk_len: usize = line[1..]
+                .parse()
+                .map_err(|_| "Invalid bulk string length")?;
+            let mut bulk_string = String::new();
+            let mut bytes_read = 0;
+
+            while bytes_read < bulk_len {
+                if let Some(content_line) = lines.next() {
+                    bytes_read += content_line.len();
+                    bulk_string.push_str(content_line);
+                } else {
+                    return Err("Unexpected end of input while reading bulk string".to_string());
+                }
+            }
+            elements.push(bulk_string);
+        } else {
+            return Err("Expected bulk string".to_string());
+        }
+    }
+
+    if elements.len() != num_elements {
+        return Err("Mismatched number of elements".to_string());
+    }
+
+    Ok(elements)
 }
