@@ -1,18 +1,15 @@
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
 
 use crate::{
     log,
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
+    models::{redis_item::RedisItem, redis_type::RedisType, value::Value},
 };
 
 pub async fn hvals_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    mut cache: HashMap<String, RedisItem>,
     key: String,
     _: Vec<Value>,
 ) -> Option<Value> {
-    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             log!("Item: {:?}", item);

@@ -1,13 +1,10 @@
-use crate::{
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
-};
+use crate::models::redis_item::RedisItem;
+use crate::models::{redis_type::RedisType, value::Value};
+use std::collections::HashMap;
 use std::time::Instant;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
 
 pub async fn rpush_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    mut cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -15,8 +12,6 @@ pub async fn rpush_handler(
         Some(Value::BulkString(v)) => v.clone(),
         _ => return Some(Value::Error("ERR value is not a bulk string".to_string())),
     };
-
-    let mut cache = cache.lock().await;
 
     match cache.get_mut(&key) {
         Some(item) => {

@@ -1,8 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
-use crate::{models::value::Value, server::RedisItem};
-
+use crate::models::{redis_item::RedisItem, value::Value};
 pub async fn unlink_handler(
     cache: Arc<Mutex<HashMap<String, RedisItem>>>,
     _key: String,

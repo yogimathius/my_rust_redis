@@ -1,15 +1,12 @@
-use std::sync::Arc;
 use std::{collections::HashMap, time::Instant};
-use tokio::sync::Mutex;
 
 use crate::{
     log,
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
+    models::{redis_item::RedisItem, redis_type::RedisType, value::Value},
 };
 
 pub async fn hset_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    mut cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -26,7 +23,6 @@ pub async fn hset_handler(
         }
     }
     // TODO: check for other value types for the value
-    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let RedisType::Hash = item.redis_type {

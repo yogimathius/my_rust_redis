@@ -1,10 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
 
-use crate::{models::value::Value, server::RedisItem};
-
+use crate::models::{redis_item::RedisItem, value::Value};
 pub async fn unlink_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    mut cache: HashMap<String, RedisItem>,
     _key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -16,8 +14,6 @@ pub async fn unlink_handler(
         })
         .collect();
     tokio::spawn(async move {
-        let mut cache = cache.lock().await;
-
         for key in keys {
             cache.remove(&key);
         }

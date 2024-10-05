@@ -1,5 +1,5 @@
 use clap::Parser;
-use redis_starter_rust::server::RedisServer;
+use redis_starter_rust::server::Server;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -12,7 +12,7 @@ fn main() {
     let args = Args::parse();
     let port = args.port.unwrap_or(6379);
 
-    let mut server = RedisServer::new(port, args.replicaof);
+    let mut server = Server::new(port, args.replicaof);
     server.run();
     // Start the event loop
     loop {

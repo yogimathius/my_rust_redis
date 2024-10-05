@@ -1,14 +1,10 @@
+use std::collections::HashMap;
 use std::time::Instant;
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
 
-use crate::{
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
-};
+use crate::models::{redis_item::RedisItem, redis_type::RedisType, value::Value};
 
 pub async fn lpush_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    mut cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -17,7 +13,6 @@ pub async fn lpush_handler(
         _ => return Some(Value::Error("ERR value is not a bulk string".to_string())),
     };
 
-    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let Value::Array(ref mut list) = item.value {

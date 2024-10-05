@@ -1,14 +1,12 @@
 use crate::{
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
+    models::{redis_item::RedisItem, redis_type::RedisType, value::Value},
     utilities::lock_and_get_item,
 };
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
 
 // TODO: handle creating a new key if key isn't found
 pub async fn lset_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -26,7 +24,7 @@ pub async fn lset_handler(
         }
     };
 
-    match lock_and_get_item(&cache, &key, |item| {
+    match lock_and_get_item(cache, &key, |item| {
         if let RedisType::List = item.redis_type {
             if let Value::Array(ref mut list) = item.value {
                 if index < list.len() {

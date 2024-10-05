@@ -1,7 +1,5 @@
 use async_trait::async_trait;
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use crate::handlers::*;
 use crate::models::redis_item::RedisItem;
@@ -12,7 +10,7 @@ use lazy_static::lazy_static;
 pub trait CommandHandler: Send + Sync {
     async fn handle(
         &self,
-        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+        cache: HashMap<String, RedisItem>,
         key: String,
         args: Vec<Value>,
     ) -> Option<Value>;
@@ -20,18 +18,14 @@ pub trait CommandHandler: Send + Sync {
 
 pub struct SyncCommandHandler<F>
 where
-    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Option<Value>
-        + Send
-        + Sync,
+    F: Fn(HashMap<String, RedisItem>, String, Vec<Value>) -> Option<Value> + Send + Sync,
 {
     handler: F,
 }
 
 impl<F> SyncCommandHandler<F>
 where
-    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Option<Value>
-        + Send
-        + Sync,
+    F: Fn(HashMap<String, RedisItem>, String, Vec<Value>) -> Option<Value> + Send + Sync,
 {
     pub fn new(handler: F) -> Self {
         Self { handler }
@@ -41,13 +35,11 @@ where
 #[async_trait]
 impl<F> CommandHandler for SyncCommandHandler<F>
 where
-    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Option<Value>
-        + Send
-        + Sync,
+    F: Fn(HashMap<String, RedisItem>, String, Vec<Value>) -> Option<Value> + Send + Sync,
 {
     async fn handle(
         &self,
-        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+        cache: HashMap<String, RedisItem>,
         key: String,
         args: Vec<Value>,
     ) -> Option<Value> {
@@ -57,7 +49,7 @@ where
 
 pub struct AsyncCommandHandler<F, Fut>
 where
-    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Fut + Send + Sync,
+    F: Fn(HashMap<String, RedisItem>, String, Vec<Value>) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Option<Value>> + Send,
 {
     handler: F,
@@ -65,7 +57,7 @@ where
 
 impl<F, Fut> AsyncCommandHandler<F, Fut>
 where
-    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Fut + Send + Sync,
+    F: Fn(HashMap<String, RedisItem>, String, Vec<Value>) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Option<Value>> + Send,
 {
     pub fn new(handler: F) -> Self {
@@ -76,12 +68,12 @@ where
 #[async_trait]
 impl<F, Fut> CommandHandler for AsyncCommandHandler<F, Fut>
 where
-    F: Fn(Arc<Mutex<HashMap<String, RedisItem>>>, String, Vec<Value>) -> Fut + Send + Sync,
+    F: Fn(HashMap<String, RedisItem>, String, Vec<Value>) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = Option<Value>> + Send,
 {
     async fn handle(
         &self,
-        cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+        cache: HashMap<String, RedisItem>,
         key: String,
         args: Vec<Value>,
     ) -> Option<Value> {

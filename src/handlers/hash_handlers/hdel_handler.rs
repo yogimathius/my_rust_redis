@@ -1,13 +1,9 @@
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
 
-use crate::{
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
-};
+use crate::models::{redis_item::RedisItem, redis_type::RedisType, value::Value};
 
 pub async fn hdel_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    mut cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -15,7 +11,6 @@ pub async fn hdel_handler(
         return Some(Value::Integer(0));
     }
 
-    let mut cache = cache.lock().await;
     match cache.get_mut(&key) {
         Some(item) => {
             if let RedisType::Hash = item.redis_type {

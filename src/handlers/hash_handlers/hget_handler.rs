@@ -1,17 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
 
-use crate::{
-    models::{redis_type::RedisType, value::Value},
-    server::RedisItem,
-};
+use crate::models::{redis_item::RedisItem, redis_type::RedisType, value::Value};
 
 pub async fn hget_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
-    let cache = cache.lock().await;
     match cache.get(&key) {
         Some(item) if item.redis_type == RedisType::Hash => match &item.value {
             Value::Hash(hash) => match args.get(0) {

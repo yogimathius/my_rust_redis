@@ -1,14 +1,12 @@
 use crate::{
     log,
-    models::value::Value,
-    server::RedisItem,
+    models::{redis_item::RedisItem, value::Value},
     utilities::lock_and_get_item,
 };
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
 
 pub async fn lrem_handler(
-    cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    cache: HashMap<String, RedisItem>,
     key: String,
     args: Vec<Value>,
 ) -> Option<Value> {
@@ -23,7 +21,7 @@ pub async fn lrem_handler(
         _ => return Some(Value::Error("ERR value is not a bulk string".to_string())),
     };
 
-    match lock_and_get_item(&cache, &key, |item| {
+    match lock_and_get_item(cache, &key, |item| {
         if let Value::Array(ref mut list) = item.value {
             let mut removed = 0;
             log!("list before lrem: {:?}", list);

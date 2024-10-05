@@ -1,9 +1,11 @@
-use crate::{log, models::value::Value, server::RedisItem};
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use crate::{
+    log,
+    models::{redis_item::RedisItem, value::Value},
+};
+use std::collections::HashMap;
 
 pub async fn keys_handler(
-    _cache: Arc<Mutex<HashMap<String, RedisItem>>>,
+    _cache: HashMap<String, RedisItem>,
     _key: String,
     args: Vec<Value>,
 ) -> Option<Value> {

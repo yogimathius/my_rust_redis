@@ -12,9 +12,9 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 
-pub struct Server {
+pub struct RedisServer {
     port: u16,
-    pub role: Role,
+    role: Role,
     master_addr: Option<String>,
     master_stream: Option<TcpStream>,
     master_replid: String,
@@ -26,7 +26,7 @@ pub struct Server {
     data: HashMap<String, DataValue>,
 }
 
-impl Server {
+impl RedisServer {
     pub fn new(port: u16, replicaof: Option<String>) -> Self {
         let role = match replicaof {
             Some(_) => Role::Slave,
@@ -42,7 +42,7 @@ impl Server {
         } else {
             "?".to_string()
         };
-        Server {
+        RedisServer {
             port,
             role,
             master_addr,
@@ -93,7 +93,7 @@ impl Server {
     pub fn read_messages(&mut self) {
         let mut closed_indices = Vec::new();
         for (index, stream) in self.connections.iter_mut().enumerate() {
-            let (should_close, new_commands) = Server::read_messages_from(stream);
+            let (should_close, new_commands) = RedisServer::read_messages_from(stream);
             if should_close {
                 closed_indices.push(index);
             }
@@ -109,7 +109,7 @@ impl Server {
         }
         // Read from the master stream if it exists
         if let Some(master_stream) = self.master_stream.as_mut() {
-            let (_should_close, new_commands) = Server::read_messages_from(master_stream);
+            let (_should_close, new_commands) = RedisServer::read_messages_from(master_stream);
             if new_commands.len() > 0 {
                 println!("Received {} commands from master", new_commands.len());
                 self.messages
@@ -286,10 +286,13 @@ impl Server {
         // Save a reference to the master stream
         let mut stream = self.master_stream.as_ref().unwrap();
         // Send PING to master to ensure connection
+        log!("stream: {:?}", stream);
         println!("Sending PING to master...");
         let message = format!("*1\r\n$4\r\nPING\r\n");
         match stream.write(message.as_bytes()) {
-            Ok(_) => {}
+            Ok(_) => {
+                log!("Sent PING to master");
+            }
             Err(e) => {
                 panic!("Error PINGing master: {}", e);
             }

@@ -1,7 +1,9 @@
-use crate::{command::Command, connection::Connection};
+use std::net::TcpStream;
+
+use crate::command::Command;
 
 #[derive(Debug)]
 pub struct Message {
-    pub connection: Connection,
+    pub connection: TcpStream,
     pub command: Command,
 }
