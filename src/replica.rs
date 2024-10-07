@@ -4,11 +4,13 @@ use tokio::net::TcpStream;
 
 use crate::log;
 use crate::server::Server;
+use crate::utilities::ServerState;
 
 pub struct ReplicaClient {
     pub port: u16,
     pub stream: TcpStream,
     pub handshakes: u8,
+    pub sync: bool,
 }
 
 impl ReplicaClient {
@@ -22,6 +24,7 @@ impl ReplicaClient {
             port: port.parse::<u16>().unwrap(),
             stream,
             handshakes: 0,
+            sync: false,
         })
     }
 
@@ -66,7 +69,7 @@ impl ReplicaClient {
     pub async fn handle_response(
         &mut self,
         response: &str,
-        server: &Server,
+        server: &mut Server,
     ) -> Result<(), Box<dyn std::error::Error>> {
         match response.trim() {
             "+PONG" => {
@@ -81,10 +84,25 @@ impl ReplicaClient {
             }
             _ if response.starts_with("+FULLRESYNC") => {
                 log!("ready for rdbsync");
+                server.server_state = ServerState::ReceivingRdbDump;
+                return Ok(());
             }
-            _ => {
-                log!("Failed to establish replication: {}", response);
-            }
+            _ => match server.server_state {
+                ServerState::ReceivingRdbDump => {
+                    log!("Receiving RDB dump");
+                    server.server_state = ServerState::AwaitingGetAck;
+                    return Ok(());
+                }
+                ServerState::AwaitingGetAck => {
+                    log!("Received get ack");
+                    self.sync = true;
+                    server.server_state = ServerState::StreamingCommands;
+                    return Ok(());
+                }
+                _ => {
+                    log!("Unknown response: {}", response);
+                }
+            },
         }
         Ok(())
     }

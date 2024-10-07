@@ -9,7 +9,14 @@ use bytes::BytesMut;
 
 use crate::models::value::Value;
 use crate::server::RedisItem;
-
+#[derive(Debug, Clone, PartialEq)]
+pub enum ServerState {
+    Initialising,
+    AwaitingFullResync,
+    ReceivingRdbDump,
+    AwaitingGetAck,
+    StreamingCommands,
+}
 pub fn log_message(file: &str, line: u32, args: Arguments) {
     println!("{}:{}: {:?}", file, line, args);
 }

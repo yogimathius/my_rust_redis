@@ -4,6 +4,7 @@ use crate::models::redis_type::RedisType;
 use crate::models::value::Value;
 use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
+use crate::utilities::ServerState;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -29,6 +30,7 @@ pub struct Server {
     pub role: Role,
     pub port: u16,
     pub sync: bool,
+    pub server_state: ServerState,
 }
 
 impl Server {
@@ -50,6 +52,7 @@ impl Server {
             role,
             port: args.port,
             sync: false,
+            server_state: ServerState::Initialising,
         }
     }
 
@@ -59,11 +62,12 @@ impl Server {
                 let mut replica = ReplicaClient::new(vec).await.unwrap();
                 replica.send_ping(&self).await.unwrap();
 
-                while replica.handshakes < 4 {
+                while replica.sync == false {
                     match replica.read_response().await {
                         Ok(response) => {
+                            log!("response in match: {}", response);
                             replica.handshakes += 1;
-                            replica.handle_response(&response, &self).await.unwrap();
+                            replica.handle_response(&response, self).await.unwrap();
                         }
                         Err(e) => {
                             log!("Failed to read from stream: {}", e);
@@ -126,18 +130,18 @@ impl Server {
     }
 
     pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
-        match &self.role {
-            Role::Main => None,
-            Role::Slave { host: _, port: _ } => {
-                let mut msg = vec![Value::BulkString(command.to_string())];
-                for (key, value) in params {
-                    msg.push(Value::BulkString(key.to_string()));
-                    msg.push(Value::BulkString(value.to_string()));
-                }
-                let payload = Value::Array(msg);
-                Some(payload)
-            }
+        // match &self.role {
+        // Role::Main => None,
+        // Role::Slave { host: _, port: _ } => {
+        let mut msg = vec![Value::BulkString(command.to_string())];
+        for (key, value) in params {
+            msg.push(Value::BulkString(key.to_string()));
+            msg.push(Value::BulkString(value.to_string()));
         }
+        let payload = Value::Array(msg);
+        Some(payload)
+        // }
+        // }
     }
 }
 

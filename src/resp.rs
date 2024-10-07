@@ -58,7 +58,12 @@ impl RespHandler {
                 let header = format!("${}\r\n", contents.len());
                 self.stream.write_all(header.as_bytes()).await?;
                 self.stream.write_all(&contents).await?;
-
+                // write replconf getack
+                let replconf =
+                    server.generate_replconf("REPLCONF", vec![("GETACK", "1".to_string())]);
+                self.stream
+                    .write_all(replconf.unwrap().serialize().as_bytes())
+                    .await?;
                 server.sync = false;
             }
         }
