@@ -1,6 +1,7 @@
 use crate::{
     log,
     models::value::Value,
+    server::{Server, ServerState},
     utilities::{extract_command, parse_message, unpack_bulk_str, unpack_integer},
 };
 use bytes::{Bytes, BytesMut};
@@ -38,12 +39,11 @@ impl Command {
         }
     }
 
-    pub async fn parse(input: &mut BytesMut) -> Result<Command, String> {
+    pub async fn parse(input: &mut BytesMut, server_state: ServerState) -> Result<Command, String> {
         log!("Parsing command: {:?}", input);
 
         // Attempt to parse a message from the input buffer
         let (value, bytes_consumed) = parse_message(input.clone()).map_err(|e| e.to_string())?;
-        log!("Parsed value: {:?}", value);
         log!("Parsed value: {:?}", value);
 
         // Capture the raw bytes and advance the buffer
@@ -56,6 +56,18 @@ impl Command {
         let command_upper = command_name.to_uppercase();
         log!("Command: {}", command_upper);
         match value {
+            Value::BulkString(s) => {
+                if server_state == ServerState::ReceivingRdbDump {
+                    return Ok(Command::new(
+                        RedisCommand::Rdb(s.into()),
+                        String::new(),
+                        vec![],
+                        raw_command_bytes,
+                    ));
+                } else {
+                    return Err("Unexpected RDB data".to_string());
+                }
+            }
             Value::SimpleString(s) => {
                 if s.starts_with("FULLRESYNC") {
                     let parts: Vec<&str> = s.trim_end().split_whitespace().collect();
@@ -172,12 +184,15 @@ impl Command {
                                         raw_command_bytes,
                                     ))
                                 }
-                                "GETACK" => Ok(Command::new(
-                                    RedisCommand::ReplConfGetAck,
-                                    String::new(),
-                                    args,
-                                    raw_command_bytes,
-                                )),
+                                "GETACK" => {
+                                    log!("REPLCONF GETACK");
+                                    Ok(Command::new(
+                                        RedisCommand::ReplConfGetAck,
+                                        String::new(),
+                                        args,
+                                        raw_command_bytes,
+                                    ))
+                                }
                                 _ => Err(format!("Unknown REPLCONF subcommand: {}", subcommand)),
                             }
                         } else {

@@ -104,25 +104,27 @@ fn parse_array(buffer: BytesMut) -> Result<(Value, usize)> {
 }
 
 fn parse_bulk_string(buffer: &[u8]) -> Result<(Value, usize), anyhow::Error> {
+    log!("Parsing bulk string: {:?}", buffer);
     let mut idx = 1; // Skip the '$' character
     let (length_line, len_consumed) = read_until_crlf(&buffer[idx..]).unwrap();
     idx += len_consumed;
 
-    let bulk_length: isize = parse_int(length_line).unwrap().try_into().unwrap();
+    let bulk_length = parse_int(length_line)?;
     if bulk_length < 0 {
         return Ok((Value::NullBulkString, idx));
     }
     let bulk_length = bulk_length as usize;
 
     let total_needed = idx + bulk_length + 2; // +2 for '\r\n'
+    log!("Total needed: {}", total_needed);
+    log!("Buffer length: {}", buffer.len());
     if buffer.len() < total_needed {
         return Err(anyhow::anyhow!("Incomplete"));
     }
 
     let data = &buffer[idx..idx + bulk_length];
     idx += bulk_length + 2; // Move past data and '\r\n'
-
-    // Always store data as bytes
+    log!("Data: {:?}", data);
     Ok((Value::BulkString(data.to_vec()), idx))
 }
 

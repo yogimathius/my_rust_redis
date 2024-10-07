@@ -13,3 +13,12 @@ impl fmt::Display for Role {
         }
     }
 }
+
+impl Role {
+    pub fn is_master(&self) -> bool {
+        match self {
+            Role::Master => true,
+            Role::Slave => false,
+        }
+    }
+}

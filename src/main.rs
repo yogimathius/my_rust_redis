@@ -1,5 +1,5 @@
 use clap::Parser;
-use redis_starter_rust::{app_state::AppState, log};
+use redis_starter_rust::{app_state::AppState, log, server::ServerState};
 use std::sync::Arc;
 
 #[derive(Parser, Debug)]
@@ -25,12 +25,17 @@ async fn main() {
         let mut server = server_clone.lock().await;
         server.run().await;
         notify_clone.notify_one();
+        if server.role.is_master() {
+            server.state = ServerState::StreamingCommands;
+        } else {
+            server.state = ServerState::ReceivingRdbDump;
+        }
     });
 
     // Wait for the server to complete its setup
     app_state.notify.notified().await;
     log!("Server setup complete");
-
+    log!("server state {:?}", app_state.server.lock().await.state);
     // Start workers
     let handles = app_state.start_workers();
 
