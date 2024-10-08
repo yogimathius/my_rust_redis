@@ -32,7 +32,7 @@ impl AppState {
                 loop {
                     let listener: Arc<tokio::net::TcpListener> = {
                         let server = server_clone.lock().await;
-                        if let Some(ref listener) = server.listener {
+                        if let Some(ref listener) = server.connection_manager.listener {
                             Arc::clone(listener)
                         } else {
                             drop(server);
@@ -47,7 +47,7 @@ impl AppState {
                                 {
                                     let mut server = server_clone.lock().await;
                                     let connection = ConnectionState::new(stream);
-                                    server.connections.push(connection);
+                                    server.connection_manager.connections.push(connection);
                                 }
                                 notify_clone.notify_one();
                             }
@@ -68,7 +68,8 @@ impl AppState {
         let read_handle = tokio::spawn(async move {
             loop {
                 let mut server = server_clone.lock().await;
-                server.read_messages().await;
+                let state = server.state.clone();
+                server.connection_manager.read_messages(state).await;
                 notify_clone.notify_one();
                 tokio::task::yield_now().await;
             }
@@ -80,7 +81,7 @@ impl AppState {
         let process_handle = tokio::spawn(async move {
             loop {
                 let mut server = server_clone.lock().await;
-                server.process_messages().await;
+                server.message_processor.process_messages().await;
                 tokio::task::yield_now().await;
             }
         });

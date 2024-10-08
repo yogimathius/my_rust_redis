@@ -85,7 +85,11 @@ impl RespHandler {
         log!("command: {}", command);
         if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
             command_function
-                .handle(server.clone().lock().await.data.clone(), key, args)
+                .handle(
+                    server.clone().lock().await.message_processor.data.clone(),
+                    key,
+                    args,
+                )
                 .await
         } else {
             Value::SimpleString("Unknown command".to_string());
