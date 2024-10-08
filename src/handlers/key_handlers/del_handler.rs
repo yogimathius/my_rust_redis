@@ -12,7 +12,7 @@ pub async fn del_handler(
 ) -> Option<Value> {
     let keys = args
         .iter()
-        .map(|arg| unpack_bulk_str(arg.clone()).unwrap())
+        .map(|arg| unpack_bulk_str(&arg.clone()).unwrap())
         .collect::<Vec<String>>();
 
     let mut count = 0;

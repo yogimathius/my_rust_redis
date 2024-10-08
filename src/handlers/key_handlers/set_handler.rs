@@ -13,15 +13,15 @@ pub async fn set_handler(
     args: Vec<Value>,
 ) -> Option<Value> {
     log!("args {:?}", args);
-    let value = Value::BulkString(unpack_bulk_str(args.get(0).unwrap().clone()).unwrap());
+    let value = Value::BulkString(unpack_bulk_str(&args.get(0).unwrap().clone()).unwrap());
     let option = match args.get(1) {
-        Some(value) => unpack_bulk_str(value.clone()),
-        None => unpack_bulk_str(Value::BulkString("".to_string())),
+        Some(value) => unpack_bulk_str(&value.clone()),
+        None => unpack_bulk_str(&Value::BulkString("".to_string())),
     };
 
     let expiration: Option<i64> = match option.unwrap().as_str() {
         "EX" | "px" => {
-            let expiration_str = unpack_bulk_str(args.get(2).unwrap().clone()).unwrap();
+            let expiration_str = unpack_bulk_str(&args.get(2).unwrap().clone()).unwrap();
             log!("expiration_str {:?}", expiration_str);
             Some(expiration_str.parse::<i64>().unwrap())
         }

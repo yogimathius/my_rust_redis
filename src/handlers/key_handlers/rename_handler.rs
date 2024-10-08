@@ -13,7 +13,7 @@ pub async fn rename_handler(
     args: Vec<Value>,
 ) -> Option<Value> {
     log!("rename_handler handler {:?}", args);
-    let new_key = unpack_bulk_str(args.get(1).unwrap().clone()).unwrap();
+    let new_key = unpack_bulk_str(&args.get(1).unwrap().clone()).unwrap();
 
     if !cache.contains_key(&key) {
         return Some(Value::Error("ERR no such key".to_string()));

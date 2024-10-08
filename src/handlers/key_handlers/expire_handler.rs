@@ -15,8 +15,8 @@ pub async fn expire_handler(
     let expiration_time = unpack_integer(args.get(1).unwrap().clone()).unwrap();
 
     let option = match args.get(2) {
-        Some(value) => unpack_bulk_str(value.clone()),
-        None => unpack_bulk_str(Value::BulkString("".to_string())),
+        Some(value) => unpack_bulk_str(&value.clone()),
+        None => unpack_bulk_str(&Value::BulkString("".to_string())),
     };
 
     log!("option {:?}", option);
