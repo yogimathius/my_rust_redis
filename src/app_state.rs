@@ -1,6 +1,9 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use tokio::sync::{Mutex, Notify};
+use tokio::{
+    sync::{Mutex, Notify},
+    time,
+};
 
 use crate::{log, models::connection_state::ConnectionState, server::Server};
 
@@ -25,18 +28,13 @@ impl AppState {
         let notify_clone = Arc::clone(&self.notify);
 
         let accept_handle = {
-            // let server_clone = Arc::clone(&self.server);
-            // let notify_clone = Arc::clone(&self.notify);
-
             tokio::spawn(async move {
-                // Wait until the listener is initialized
                 loop {
                     let listener: Arc<tokio::net::TcpListener> = {
                         let server = server_clone.lock().await;
                         if let Some(ref listener) = server.listener {
                             Arc::clone(listener)
                         } else {
-                            // Listener not initialized yet, yield and try again
                             drop(server);
                             tokio::task::yield_now().await;
                             continue;
@@ -87,6 +85,22 @@ impl AppState {
             }
         });
         handles.push(process_handle);
+
+        // Periodic RDB dump task
+        let server_clone = Arc::clone(&self.server);
+        let rdb_dump_handle = tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(360)); // 6 minutes
+            loop {
+                interval.tick().await;
+                let server = server_clone.lock().await;
+                if let Err(e) = server.rdb_dump().await {
+                    eprintln!("Failed to perform RDB dump: {}", e);
+                } else {
+                    println!("RDB dump completed successfully.");
+                }
+            }
+        });
+        handles.push(rdb_dump_handle);
 
         handles
     }
