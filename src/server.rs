@@ -1,8 +1,7 @@
-// use bytes::Buf;
 use bytes::{Buf, Bytes, BytesMut};
-use core::str;
-use regex::Regex;
 use std::collections::{HashMap, VecDeque};
+use std::fs::File;
+use std::io::Write;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -11,17 +10,20 @@ use tokio::sync::Mutex;
 use crate::command::{Command, RedisCommand};
 use crate::log;
 use crate::models::connection_state::ConnectionState;
-use crate::models::data_value::DataValue;
 use crate::models::message::Message;
+use crate::models::redis_item::RedisItem;
+use crate::models::redis_type::RedisType;
 use crate::models::role::Role;
 use crate::models::value::Value;
+use crate::replica::ReplicaClient;
 use crate::utilities::parse_message;
-// use crate::models::value::Value;
-// use crate::utilities::{extract_command, parse_message, unpack_bulk_str};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ServerState {
     Initialising,
+    SendingHandshake,
+    AwaitingReplConfOk,
+    SendingCapabilities,
     AwaitingFullResync,
     ReceivingRdbDump,
     StreamingCommands,
@@ -39,7 +41,8 @@ pub struct Server {
     master_connection: Option<ConnectionState>,
     messages: VecDeque<Message>,
     replications: HashMap<String, Arc<Mutex<TcpStream>>>,
-    data: HashMap<String, DataValue>,
+    pub data: HashMap<String, RedisItem>,
+    pub sync: bool,
 }
 
 impl Server {
@@ -71,6 +74,7 @@ impl Server {
             messages: VecDeque::new(),
             replications: HashMap::new(),
             data: HashMap::new(),
+            sync: false,
         }
     }
 
@@ -238,7 +242,6 @@ impl Server {
 
         match message.command.command {
             RedisCommand::FullResync(replid, offset) => {
-                self.state = ServerState::AwaitingFullResync;
                 self.master_replid = replid;
                 self.master_repl_offset = offset as u32;
             }
@@ -261,9 +264,11 @@ impl Server {
                 stream.write_all(response.as_bytes()).await.unwrap();
             }
             RedisCommand::Set(key, value, expiry_flag, expiry_time) => {
-                let mut datavalue = DataValue {
-                    value,
-                    expiry: None,
+                let mut datavalue = RedisItem {
+                    value: Value::BulkString(value),
+                    created_at: std::time::Instant::now(),
+                    expiration: None,
+                    redis_type: RedisType::String,
                 };
                 if let Some(expiry_time) = expiry_time {
                     if let Some(flag) = expiry_flag {
@@ -273,7 +278,7 @@ impl Server {
                                 .unwrap()
                                 .as_millis()
                                 + expiry_time as u128;
-                            datavalue.expiry = Some(expiry_timestamp);
+                            datavalue.expiration = Some(expiry_timestamp.try_into().unwrap());
                         }
                     }
                 }
@@ -291,23 +296,23 @@ impl Server {
                 stream.write_all(response.as_bytes()).await.unwrap();
             }
             RedisCommand::Get(key) => match self.data.get(&key) {
-                Some(value) => match value.expiry {
-                    Some(expiry) => {
+                Some(value) => match value.expiration {
+                    Some(expiration) => {
                         let current_timestamp = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
                             .as_millis();
-                        if expiry < current_timestamp {
+                        if expiration < current_timestamp.try_into().unwrap() {
                             self.data.remove(&key);
                             let response = "$-1\r\n";
                             stream.write_all(response.as_bytes()).await.unwrap();
                         } else {
-                            let response = format!("+{}\r\n", value.value);
+                            let response = format!("+{:?}\r\n", value.value);
                             stream.write_all(response.as_bytes()).await.unwrap();
                         }
                     }
                     None => {
-                        let response = format!("+{}\r\n", value.value);
+                        let response = format!("+{:?}\r\n", value.value);
                         stream.write_all(response.as_bytes()).await.unwrap();
                     }
                 },
@@ -374,153 +379,73 @@ impl Server {
             }
         }
         let connection = self.master_connection.as_ref().unwrap();
-        log!("Sending PING to master...");
-        let message = format!("*1\r\n$4\r\nPING\r\n");
-        match connection
-            .stream
-            .lock()
-            .await
-            .write_all(message.as_bytes())
-            .await
-        {
-            Ok(_) => {}
-            Err(e) => {
-                panic!("Error PINGing master: {}", e);
-            }
-        }
-        self.expect_read(&connection.stream, "+PONG").await;
-        log!("Sending REPLCONF listening-port to master...");
-        let message = format!(
-            "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n${}\r\n{}\r\n",
-            self.port.to_string().len(),
-            self.port
-        );
-        connection
-            .stream
-            .lock()
-            .await
-            .write_all(message.as_bytes())
-            .await
-            .unwrap();
-        log!("Checking OK...");
-        self.expect_read(&connection.stream, "+OK").await;
-        let message = format!("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n");
-        connection
-            .stream
-            .lock()
-            .await
-            .write_all(message.as_bytes())
-            .await
-            .unwrap();
-        self.expect_read(&connection.stream, "+OK").await;
-        log!("Sending PSYNC to master...");
-        let message = "*3\r\n$5\r\nPSYNC\r\n$1\r\n?\r\n$2\r\n-1\r\n";
-        connection
-            .stream
-            .lock()
-            .await
-            .write_all(message.as_bytes())
-            .await
-            .unwrap();
-        let mut buf = BytesMut::with_capacity(4096);
-        log!("Reading from master...");
-        loop {
-            match connection.stream.lock().await.read_buf(&mut buf).await {
-                Ok(0) => {
-                    log!("Read 0 bytes, closing connection");
-                    // should_close = true;
-                }
-                Ok(bytes_read) => {
-                    log!("Read {} bytes", bytes_read);
-                    log!("Buffer: {:?}", buf);
 
-                    if let Some(pos) = buf.windows(2).position(|window| window == b"\r\n") {
-                        let line_end = pos + 2; // Position after "\r\n"
-                        let line = &buf[..line_end];
+        let stream_clone = Arc::clone(&connection.stream);
 
-                        // Convert only the line to a UTF-8 string
-                        match str::from_utf8(line) {
-                            Ok(line_str) => {
-                                log!("Line: {}", line_str);
-                                // Apply the regex to the line
-                                let fullresync =
-                                    Regex::new(r"^\+FULLRESYNC ([a-z0-9]+) (\d+)\r\n$").unwrap();
-                                if let Some(captures) = fullresync.captures(line_str) {
-                                    let id = captures.get(1).unwrap().as_str();
-                                    let offset = captures.get(2).unwrap().as_str();
-                                    log!("id: {}, offset: {}", id, offset);
-                                    log!("line_end: {}", line_end);
-                                    // Advance the buffer by the length of the line
-                                    buf.advance(line_end);
-                                    self.state = ServerState::ReceivingRdbDump;
-                                    // } else {
-                                    // check for rdb and getack here
-                                    let (value, _) = parse_message(buf.clone().split()).unwrap();
-                                    log!("value: {:?}", value);
-                                    match value {
-                                        Value::BulkString(data) => {
-                                            log!("Received RDB data: {:?}", data);
-                                            buf.advance(line_end);
-                                            self.state = ServerState::StreamingCommands;
-                                        }
-                                        Value::Array(_) => {
-                                            log!("Received REPLCONF GETACK");
-                                            buf.advance(line_end);
-                                            let command =
-                                                Command::parse(&mut buf, self.state.clone())
-                                                    .await
-                                                    .unwrap();
-                                            log!("command: {:?}", command);
-                                            self.messages.extend(vec![Message {
-                                                connection: Arc::clone(&connection.stream),
-                                                command,
-                                            }]);
-                                        }
-                                        _ => {
-                                            log!("TODO: Handle unexpected value types");
-                                            buf.advance(line_end);
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                log!("Error converting line to UTF-8: {:?}", e);
-                                // Handle UTF-8 conversion error
-                                return log!("Invalid UTF-8 in FULLRESYNC line");
-                            }
-                        }
-                    } else {
-                        // "\r\n" not found; the line might be incomplete
-                        log!("Incomplete FULLRESYNC line; need more data");
-                        // Wait for more data
-                    }
+        let mut replica = ReplicaClient::new(stream_clone, self.port).await.unwrap();
+        replica.send_ping().await.unwrap();
+        self.state = ServerState::SendingHandshake;
+        while replica.sync == false {
+            match replica.read_response().await {
+                Ok(response) => {
+                    log!("response in match: {}", response);
+                    replica.handshakes += 1;
+                    replica.handle_response(&response, self).await.unwrap();
                 }
                 Err(e) => {
-                    log!("Error reading from stream: {:?}", e);
-                    // should_close = true;
+                    log!("Failed to read from stream: {}", e);
                 }
             }
         }
     }
 
-    async fn expect_read(&self, stream: &Arc<Mutex<TcpStream>>, expected: &str) {
-        let mut buf = [0; 1024];
-        let mut stream = stream.lock().await;
-        match stream.read(&mut buf).await {
-            Ok(bytes_read) => {
-                let response = std::str::from_utf8(&buf[..bytes_read]).unwrap();
-                let trimmed = response.trim();
-                if trimmed != expected {
-                    panic!(
-                        "Unexpected response from master: {} (expected {})",
-                        trimmed, expected
-                    );
-                }
-                log!("Received expected response from master: {}", expected);
-            }
-            Err(e) => {
-                panic!("Error reading from master: {}", e);
-            }
+    pub async fn read_response(&mut self) -> Result<String, std::io::Error> {
+        let mut buffer = [0; 512];
+        let n = self
+            .master_connection
+            .as_mut()
+            .unwrap()
+            .stream
+            .lock()
+            .await
+            .read(&mut buffer)
+            .await?;
+        if n == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "Connection closed by the server",
+            ));
         }
+        Ok(String::from_utf8_lossy(&buffer[..n]).to_string())
+    }
+
+    pub async fn rdb_dump(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let data = self.serialize_data()?; // Implement this method to serialize your data
+        let mut file = File::create("dump.rdb")?;
+        file.write_all(&data)?;
+        Ok(())
+    }
+
+    fn serialize_data(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let data = &self.data;
+        let mut buffer = Vec::new();
+
+        // Write header
+        buffer.extend_from_slice(b"REDIS0006"); // Example header with version
+
+        // Write each key-value pair
+        for (key, value) in data.iter() {
+            buffer.push(0x01); // Type byte for string
+            buffer.extend_from_slice(&(key.len() as u32).to_be_bytes());
+            buffer.extend_from_slice(key.as_bytes());
+            let serialized_value = value.serialize().expect("Failed to serialize value");
+            buffer.extend_from_slice(&(serialized_value.len() as u32).to_be_bytes());
+            buffer.extend_from_slice(&serialized_value);
+        }
+
+        // Write footer
+        buffer.push(0xFF); // End of file marker
+
+        Ok(buffer)
     }
 }
