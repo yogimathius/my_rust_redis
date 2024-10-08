@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::vec;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::Mutex;
 
 use anyhow::Result;
 use bytes::BytesMut;
@@ -17,7 +17,6 @@ use crate::utilities::{extract_command, parse_message, unpack_bulk_str};
 pub struct RespHandler {
     stream: TcpStream,
     buffer: BytesMut,
-    // server: Arc<Mutex<Server>>,
 }
 
 impl RespHandler {
@@ -25,7 +24,6 @@ impl RespHandler {
         RespHandler {
             stream,
             buffer: BytesMut::with_capacity(512),
-            // server,
         }
     }
 

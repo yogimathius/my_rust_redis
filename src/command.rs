@@ -1,7 +1,7 @@
 use crate::{
     log,
     models::value::Value,
-    server::{Server, ServerState},
+    server::ServerState,
     utilities::{extract_command, parse_message, unpack_bulk_str, unpack_integer},
 };
 use bytes::{Bytes, BytesMut};
@@ -15,9 +15,9 @@ pub enum RedisCommand {
     Command,
     Info,
     ReplConf(String, String),
-    ReplConfGetAck, // New variant
+    ReplConfGetAck,
     Psync(String, String),
-    FullResync(String, i64), // New variant
+    FullResync(String, i64),
     Rdb(Bytes),
 }
 
