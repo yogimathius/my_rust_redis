@@ -1,21 +1,15 @@
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
-
     use redis_starter_rust::handlers::lset_handler;
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
-    use redis_starter_rust::server::{RedisItem, Role, Server};
+    use redis_starter_rust::server::{RedisItem, Server};
     use std::time::Instant;
 
+    use crate::setup::setup_server;
+
     fn setup() -> Server {
-        Server {
-            cache: Arc::new(Mutex::new(HashMap::new())),
-            role: Role::Main,
-            port: 6379,
-            sync: false,
-        }
+        setup_server()
     }
 
     #[test]
