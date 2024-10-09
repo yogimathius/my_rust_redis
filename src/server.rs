@@ -90,11 +90,14 @@ impl Server {
                 Ok((stream, _)) => {
                     tokio::spawn(async move {
                         let mut handler = RespHandler::new(stream);
-                        handler.handle_client(server).await.unwrap();
+                        match handler.handle_client(server).await {
+                            Ok(_) => log!("Client disconnected gracefully"),
+                            Err(e) => log!("Client disconnected with error: {}", e),
+                        }
                     });
                 }
                 Err(e) => {
-                    log!("error: {}", e);
+                    log!("Error accepting connection: {}", e);
                 }
             }
         }
@@ -130,9 +133,6 @@ impl Server {
     }
 
     pub fn generate_replconf(&self, command: &str, params: Vec<(&str, String)>) -> Option<Value> {
-        // match &self.role {
-        // Role::Main => None,
-        // Role::Slave { host: _, port: _ } => {
         let mut msg = vec![Value::BulkString(command.to_string())];
         for (key, value) in params {
             msg.push(Value::BulkString(key.to_string()));
@@ -140,8 +140,6 @@ impl Server {
         }
         let payload = Value::Array(msg);
         Some(payload)
-        // }
-        // }
     }
 }
 

@@ -102,9 +102,6 @@ lazy_static! {
         // Returns the number of fields contained in the hash stored at key.
         handlers.insert("HLEN", Box::new(hlen_handler));
 
-        // Sets the specified fields to their respective values in the hash stored at key.
-        handlers.insert("HMSET", Box::new(hmset_handler));
-
         // Sets field in the hash stored at key to value.
         handlers.insert("HSET", Box::new(hset_handler));
 
