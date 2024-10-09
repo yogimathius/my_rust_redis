@@ -155,17 +155,3 @@ The Redis wire protocol documentation can be found here. Its implementation shou
 ### Design/Architecture
 
 You should reuse your protocols and connections structs from my_redis_client. At that moment, you will either proud of your previous implementation or it will be time to refactor it.
-
-### BONUS
-
-Bonus points if you add the following items into your solution: 0# Advanced logging (debug and tracing (you can use the crate tracing))
-
-1. Provide multiple databases (with a maximum of 16 db)
-
-2. Implementing move command (move a key from one db to another db)
-
-3. Implementing Streams (publish/subscribe)
-
-4. Implementing incr command (increment the value of a key)
-
-5. Implementing SSL

@@ -61,7 +61,7 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
             }
             let redis_item = RedisItem {
                 value: Value::Hash(hash),
-                created_at: Instant::now(),
+                created_at: Instant::now().elapsed().as_secs() as i64,
                 expiration: None,
                 redis_type: RedisType::Hash,
             };

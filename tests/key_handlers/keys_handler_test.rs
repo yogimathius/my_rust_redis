@@ -24,7 +24,7 @@ fn test_keys_handler() {
         "key1".to_string(),
         RedisItem {
             value: Value::SimpleString("value1".to_string()),
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             expiration: None,
             redis_type: RedisType::String,
         },
@@ -33,7 +33,7 @@ fn test_keys_handler() {
         "key2".to_string(),
         RedisItem {
             value: Value::SimpleString("value2".to_string()),
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             expiration: None,
             redis_type: RedisType::String,
         },
@@ -42,7 +42,7 @@ fn test_keys_handler() {
         "anotherkey".to_string(),
         RedisItem {
             value: Value::SimpleString("value3".to_string()),
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             expiration: None,
             redis_type: RedisType::String,
         },

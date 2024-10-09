@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
 
+    use std::time::Instant;
+
     use redis_starter_rust::handlers::{hgetall_handler, hset_handler};
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::server::Server;
@@ -57,7 +59,7 @@ mod tests {
                 "key".to_string(),
                 redis_starter_rust::server::RedisItem {
                     value: Value::BulkString("some string".to_string()),
-                    created_at: std::time::Instant::now(),
+                    created_at: Instant::now().elapsed().as_secs() as i64,
                     expiration: None,
                     redis_type: redis_starter_rust::models::redis_type::RedisType::String,
                 },

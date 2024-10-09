@@ -18,7 +18,7 @@ mod tests {
             "old_key".to_string(),
             RedisItem {
                 value: Value::BulkString("some string".to_string()),
-                created_at: fixed_instant,
+                created_at: fixed_instant.elapsed().as_secs() as i64,
                 expiration: None,
                 redis_type: RedisType::String,
             },
@@ -64,7 +64,7 @@ mod tests {
             "new_key".to_string(),
             RedisItem {
                 value: Value::BulkString("existing_value".to_string()),
-                created_at: fixed_instant,
+                created_at: fixed_instant.elapsed().as_secs() as i64,
                 expiration: None,
                 redis_type: RedisType::String,
             },

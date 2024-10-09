@@ -1,3 +1,5 @@
+use chrono::Utc;
+
 use crate::{log, models::value::Value, server::Server};
 use std::time::Instant;
 
@@ -8,7 +10,8 @@ pub fn get_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Optio
         Some(item) => {
             log!("value {:?}", item);
             if let Some(expiration) = item.expiration {
-                if Instant::now().duration_since(item.created_at).as_secs() as i64 >= expiration {
+                let current_time = Utc::now().timestamp();
+                if current_time >= item.created_at + expiration {
                     return Some(Value::NullBulkString);
                 }
             }

@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+
     use std::time::Instant;
 
     use redis_starter_rust::handlers::rpop_handler;
@@ -25,7 +26,7 @@ mod tests {
         let redis_item = RedisItem {
             value: Value::Array(initial_list),
             expiration: None,
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             redis_type: RedisType::List,
         };
 

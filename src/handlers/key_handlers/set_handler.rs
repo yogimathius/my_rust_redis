@@ -21,7 +21,7 @@ pub fn set_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option
 
     let item = RedisItem {
         value: Value::BulkString(value),
-        created_at: Instant::now(),
+        created_at: Instant::now().elapsed().as_secs() as i64,
         expiration,
         redis_type: RedisType::String,
     };

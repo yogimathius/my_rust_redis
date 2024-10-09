@@ -117,7 +117,7 @@ mod tests {
                 "myhash".to_string(),
                 RedisItem {
                     value: Value::BulkString("some string".to_string()),
-                    created_at: Instant::now(),
+                    created_at: Instant::now().elapsed().as_secs() as i64,
                     expiration: None,
                     redis_type: RedisType::String,
                 },

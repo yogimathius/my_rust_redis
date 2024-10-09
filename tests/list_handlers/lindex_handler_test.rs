@@ -22,7 +22,7 @@ mod tests {
         ];
         let redis_item = RedisItem {
             value: Value::Array(list),
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             expiration: None,
             redis_type: RedisType::List,
         };

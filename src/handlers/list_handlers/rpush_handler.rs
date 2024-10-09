@@ -28,7 +28,7 @@ pub fn rpush_handler(server: &mut Server, key: String, args: Vec<Value>) -> Opti
             let redis_item = RedisItem {
                 value: Value::Array(list),
                 expiration: None,
-                created_at: Instant::now(),
+                created_at: Instant::now().elapsed().as_secs() as i64,
                 redis_type: RedisType::List,
             };
 

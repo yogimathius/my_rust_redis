@@ -4,8 +4,11 @@ use crate::models::redis_type::RedisType;
 use crate::models::value::Value;
 use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
-use crate::utilities::ServerState;
-use base64::prelude::*;
+use crate::utilities::{
+    infer_redis_type, read_byte, read_encoded_value, read_expiry, read_length_encoding,
+    read_string, ServerState,
+};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::{File, OpenOptions};
@@ -22,10 +25,10 @@ pub enum Role {
     Slave { host: String, port: u16 },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisItem {
     pub value: Value,
-    pub created_at: Instant,
+    pub created_at: i64,
     pub expiration: Option<i64>,
     pub redis_type: RedisType,
 }
@@ -82,17 +85,13 @@ impl Server {
         file.read_to_end(&mut buffer)?;
         log!("Read {} bytes from RDB file", buffer.len());
 
-        // Decode the base64 string
-        let decoded_buffer = BASE64_STANDARD.decode(&buffer)?;
-        log!("Decoded RDB file size: {} bytes", decoded_buffer.len());
-
-        if decoded_buffer.len() < 9 {
+        if buffer.len() < 9 {
             log!("RDB file is too short. Initializing with empty cache.");
             return Ok(());
         }
 
-        if &decoded_buffer[0..9] != b"REDIS0009" {
-            log!("Invalid RDB file header: {:?}", &decoded_buffer[0..9]);
+        if &buffer[0..9] != b"REDIS0009" {
+            log!("Invalid RDB file header: {:?}", &buffer[0..9]);
             return Err("Invalid RDB file format".into());
         }
 
@@ -106,58 +105,61 @@ impl Server {
                     break;
                 }
                 0xFE => {
-                    log!("Resizedb marker found, skipping");
+                    log!("Database Selector found, reading database number");
                     index += 1;
+                    let (db_number, new_index) = read_length_encoding(&buffer, index)?;
+                    index = new_index;
+                    log!("Selected Database: {}", db_number);
                 }
-                _ => {
-                    if index + 1 >= buffer.len() {
-                        log!("Unexpected end of file");
-                        break;
-                    }
-                    let key_len = buffer[index] as usize;
+                0xFB => {
+                    log!("Resizedb marker found, reading hash table sizes");
                     index += 1;
-                    if index + key_len > buffer.len() {
-                        log!("Key length exceeds file size");
-                        break;
-                    }
-                    let key = String::from_utf8_lossy(&buffer[index..index + key_len]).to_string();
-                    index += key_len;
-
-                    if index >= buffer.len() {
-                        log!("Unexpected end of file after key");
-                        break;
-                    }
-                    let value_type = buffer[index];
+                    let (hash_size, new_index) = read_length_encoding(&buffer, index)?;
+                    index = new_index;
+                    let (expire_size, new_index) = read_length_encoding(&buffer, index)?;
+                    index = new_index;
+                    log!("Hash Size: {}, Expire Size: {}", hash_size, expire_size);
+                }
+                0xFA => {
+                    log!("Auxiliary field found, skipping for now");
                     index += 1;
-
-                    let value = match value_type {
-                        0 => {
-                            if index >= buffer.len() {
-                                log!("Unexpected end of file before value length");
-                                break;
-                            }
-                            let value_len = buffer[index] as usize;
-                            index += 1;
-                            if index + value_len > buffer.len() {
-                                log!("Value length exceeds file size");
-                                break;
-                            }
-                            let value = String::from_utf8_lossy(&buffer[index..index + value_len])
-                                .to_string();
-                            index += value_len;
-                            Value::BulkString(value)
-                        }
-                        _ => {
-                            log!("Unsupported value type: {}", value_type);
-                            return Err(format!("Unsupported value type: {}", value_type).into());
-                        }
-                    };
+                    // Implement auxiliary field parsing if needed
+                }
+                0xFD | 0xFC => {
+                    // Handle Key Expiry Timestamp
+                    let (expiry, new_index) = read_expiry(&buffer, index)?;
+                    index = new_index;
+                    // Continue to read value type, key, and value
+                    let (value_type, new_index) = read_byte(&buffer, index)?;
+                    index = new_index;
+                    let (key, new_index) = read_string(&buffer, index)?;
+                    index = new_index;
+                    let (value, new_index) = read_encoded_value(&buffer, new_index, value_type)?;
+                    index = new_index;
 
                     let item = RedisItem {
                         value,
-                        created_at: std::time::Instant::now(),
+                        created_at: Instant::now().elapsed().as_secs() as i64,
+                        expiration: expiry,
+                        redis_type: infer_redis_type(value_type),
+                    };
+
+                    cache.insert(key, item);
+                }
+                _ => {
+                    // Handle Key-Value pair without expiry
+                    let (value_type, new_index) = read_byte(&buffer, index)?;
+                    index = new_index;
+                    let (key, new_index) = read_string(&buffer, index)?;
+                    index = new_index;
+                    let (value, new_index) = read_encoded_value(&buffer, new_index, value_type)?;
+                    index = new_index;
+
+                    let item = RedisItem {
+                        value,
+                        created_at: Instant::now().elapsed().as_secs() as i64,
                         expiration: None,
-                        redis_type: RedisType::String,
+                        redis_type: infer_redis_type(value_type),
                     };
 
                     cache.insert(key, item);

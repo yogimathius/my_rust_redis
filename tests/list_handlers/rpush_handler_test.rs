@@ -21,7 +21,7 @@ mod tests {
         let redis_item = RedisItem {
             value: Value::Array(initial_list),
             expiration: None,
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             redis_type: RedisType::List,
         };
 
@@ -85,7 +85,7 @@ mod tests {
         let redis_item = RedisItem {
             value: Value::Integer(123),
             expiration: None,
-            created_at: Instant::now(),
+            created_at: Instant::now().elapsed().as_secs() as i64,
             redis_type: RedisType::String,
         };
 
