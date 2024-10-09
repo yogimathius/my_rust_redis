@@ -5,9 +5,11 @@ use crate::models::value::Value;
 use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
 use crate::utilities::ServerState;
+use base64::prelude::*;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -67,7 +69,7 @@ impl Server {
         server
     }
 
-    fn read_rdb_dump(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    fn read_rdb_dump(&mut self) -> Result<(), Box<dyn Error>> {
         let path = Path::new("dump.rdb");
         if !path.exists() {
             log!("RDB file does not exist. Creating a new one.");
@@ -76,31 +78,26 @@ impl Server {
         }
 
         let mut file = File::open(path)?;
-        let file_size = file.metadata()?.len();
-        log!("RDB file size: {} bytes", file_size);
-
-        if file_size == 0 {
-            log!("RDB file is empty. Initializing with empty cache.");
-            return Ok(());
-        }
-
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
         log!("Read {} bytes from RDB file", buffer.len());
 
-        if buffer.len() < 9 {
+        // Decode the base64 string
+        let decoded_buffer = BASE64_STANDARD.decode(&buffer)?;
+        log!("Decoded RDB file size: {} bytes", decoded_buffer.len());
+
+        if decoded_buffer.len() < 9 {
             log!("RDB file is too short. Initializing with empty cache.");
             return Ok(());
         }
 
-        if &buffer[0..9] != b"REDIS0009" {
-            log!("Invalid RDB file header: {:?}", &buffer[0..9]);
+        if &decoded_buffer[0..9] != b"REDIS0009" {
+            log!("Invalid RDB file header: {:?}", &decoded_buffer[0..9]);
             return Err("Invalid RDB file format".into());
         }
 
         let mut index = 9;
         let mut cache = self.cache.lock().unwrap();
-
         while index < buffer.len() {
             log!("Processing byte at index {}: {:02X}", index, buffer[index]);
             match buffer[index] {

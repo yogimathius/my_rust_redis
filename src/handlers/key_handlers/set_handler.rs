@@ -2,13 +2,13 @@ use crate::{
     log,
     models::{redis_type::RedisType, value::Value},
     server::{RedisItem, Server},
-    utilities::{unpack_bulk_str, unpack_integer},
+    utilities::unpack_integer,
 };
 use std::time::Instant;
 
 pub fn set_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!("args {:?}", args);
-    let value = match args.get(1) {
+    let value = match args.get(0) {
         Some(Value::BulkString(v)) => v.clone(),
         _ => return Some(Value::Error("ERR invalid value".into())),
     };
