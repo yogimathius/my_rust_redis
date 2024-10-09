@@ -2,23 +2,18 @@ use crate::{log, models::value::Value, server::Server};
 use std::time::Instant;
 
 pub fn get_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
-    let cache = server.cache.lock().unwrap();
     log!("key {:?}", key);
+    let cache = server.cache.lock().unwrap();
     match cache.get(&key) {
-        Some(value) => {
-            log!("value {:?}", value);
-            let response = if let Some(expiration) = value.expiration {
-                let now = Instant::now();
-                if now.duration_since(value.created_at).as_millis() > expiration as u128 {
-                    Value::NullBulkString
-                } else {
-                    value.value.clone()
+        Some(item) => {
+            log!("value {:?}", item);
+            if let Some(expiration) = item.expiration {
+                if Instant::now().duration_since(item.created_at).as_secs() as i64 >= expiration {
+                    return Some(Value::NullBulkString);
                 }
-            } else {
-                value.value.clone()
-            };
-            log!("response {:?}", response);
-            Some(response)
+            }
+            log!("response {:?}", item.value);
+            Some(item.value.clone())
         }
         None => Some(Value::NullBulkString),
     }

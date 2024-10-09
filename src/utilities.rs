@@ -177,25 +177,15 @@ pub fn should_set_expiry(item: &RedisItem, expiration: i64, option: String) -> b
     log!("expiration {:?}", expiration);
     log!("option {:?}", option);
 
-    match option.as_str() {
-        "NX" => {
-            return item.expiration.is_none();
-        }
+    match option.to_uppercase().as_str() {
+        "NX" => item.expiration.is_none(),
         "XX" => {
             log!("item.expiration {:?}", item.expiration);
-            return item.expiration.is_some();
+            item.expiration.is_some()
         }
-        "GT" => {
-            return item.expiration.is_some() && item.expiration.unwrap() < expiration;
-        }
-        "LT" => {
-            return item.expiration.is_some() && item.expiration.unwrap() > expiration;
-        }
-        _ => {
-            log!("no option");
-
-            return true;
-        }
+        "GT" => item.expiration.map_or(true, |exp| expiration > exp),
+        "LT" => item.expiration.map_or(true, |exp| expiration < exp),
+        _ => true,
     }
 }
 

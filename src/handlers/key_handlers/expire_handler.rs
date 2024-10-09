@@ -10,17 +10,17 @@ pub fn expire_handler(server: &mut Server, key: String, args: Vec<Value>) -> Opt
     let expiration_time = unpack_integer(args.get(1).unwrap().clone()).unwrap();
 
     let option = match args.get(2) {
-        Some(value) => unpack_bulk_str(value.clone()),
-        None => unpack_bulk_str(Value::BulkString("".to_string())),
+        Some(value) => unpack_bulk_str(value.clone()).unwrap_or_default(),
+        None => String::new(),
     };
 
     log!("option {:?}", option);
     let mut cache = server.cache.lock().unwrap();
 
-    match cache.get(&key) {
-        Some(value) => {
-            log!("value {:?}", value);
-            if should_set_expiry(value, expiration_time, option.unwrap()) {
+    match cache.get_mut(&key) {
+        Some(item) => {
+            log!("value {:?}", item);
+            if should_set_expiry(item, expiration_time, option) {
                 log!("setting expiration");
                 let now = Instant::now();
                 let new_expiration =
@@ -28,13 +28,12 @@ pub fn expire_handler(server: &mut Server, key: String, args: Vec<Value>) -> Opt
                 let new_expiration_secs =
                     new_expiration.duration_since(Instant::now()).as_secs() as i64;
 
-                let item = cache.get_mut(&key).unwrap();
                 item.expiration = Some(new_expiration_secs);
-                return Some(Value::Integer(1));
+                Some(Value::Integer(1))
             } else {
-                return Some(Value::Integer(0));
+                Some(Value::Integer(0))
             }
         }
-        None => return Some(Value::Integer(0)),
+        None => Some(Value::Integer(0)),
     }
 }
