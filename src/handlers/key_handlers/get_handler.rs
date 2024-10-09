@@ -1,7 +1,6 @@
 use chrono::Utc;
 
 use crate::{log, models::value::Value, server::Server};
-use std::time::Instant;
 
 pub fn get_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
     log!("key {:?}", key);
