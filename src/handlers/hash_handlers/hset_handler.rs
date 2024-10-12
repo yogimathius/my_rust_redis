@@ -19,7 +19,6 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
             }
         }
     }
-    // TODO: check for other value types for the value
     let mut cache = server.cache.lock().unwrap();
     match cache.get_mut(&key) {
         Some(item) => {
@@ -69,8 +68,4 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
             Some(Value::Integer(count))
         }
     }
-    // 2. Lock the cache.
-    // 3. Retrieve the hash associated with the key.
-    // 4. Set the specified field to the value in the hash.
-    // 5. Return 1 if the field is new, 0 if the field existed and was updated.
 }
