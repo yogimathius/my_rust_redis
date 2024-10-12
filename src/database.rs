@@ -43,6 +43,10 @@ impl Database {
         let mut writer = BufWriter::new(file);
 
         let cache = self.cache.lock().unwrap();
+        log!("Dumping backup. Cache size: {}", cache.len());
+        for (key, item) in cache.iter() {
+            log!("Key: {}, Value type: {:?}", key, item.value);
+        }
         let serialized = bincode::serialize(&*cache)?;
 
         writer.write_all(&serialized)?;
@@ -67,6 +71,10 @@ impl Database {
         reader.read_to_end(&mut buffer)?;
 
         let deserialized: HashMap<String, RedisItem> = bincode::deserialize(&buffer)?;
+        log!("Read backup. Deserialized size: {}", deserialized.len());
+        for (key, item) in deserialized.iter() {
+            log!("Key: {}, Value type: {:?}", key, item.value);
+        }
 
         let mut cache = self.cache.lock().unwrap();
         *cache = deserialized;
