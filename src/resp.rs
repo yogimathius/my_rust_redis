@@ -4,7 +4,7 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use crate::commands::COMMAND_HANDLERS;
+use crate::commands::{COMMAND_HANDLERS, DEPRECATED_COMMANDS};
 use crate::log;
 use crate::models::value::Value;
 use crate::server::Server;
@@ -50,7 +50,12 @@ impl RespHandler {
     fn execute_command(&self, value: Value, server: &mut Server) -> Result<Option<Value>> {
         match extract_command(value) {
             Ok((command, key, args)) => {
-                if command == "FULLRESYNC" {
+                if let Some(new_command) = DEPRECATED_COMMANDS.get(command.as_str()) {
+                    Ok(Some(Value::Error(format!(
+                        "Warning: Command '{}' is deprecated. Use '{}' instead.",
+                        command, new_command
+                    ))))
+                } else if command == "FULLRESYNC" {
                     server.sync = true;
                     Ok(Some(Value::SimpleString("OK".to_string())))
                 } else if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {

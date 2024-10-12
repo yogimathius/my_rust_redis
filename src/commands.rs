@@ -27,6 +27,14 @@ where
 }
 
 lazy_static! {
+    pub static ref DEPRECATED_COMMANDS: HashMap<&'static str, &'static str> = {
+        let mut m = HashMap::new();
+        m.insert("HMSET", "HSET");
+        m
+    };
+}
+
+lazy_static! {
     pub static ref COMMAND_HANDLERS: HashMap<&'static str, CommandHandler> = {
         let mut handlers: HashMap<&str, CommandHandler> = HashMap::new();
         // Basic commands
