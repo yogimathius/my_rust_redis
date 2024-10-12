@@ -1,6 +1,6 @@
 use crate::{models::value::Value, server::Server, utilities::unpack_bulk_str};
 
-pub fn del_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+pub fn del_handler(server: &mut Server, _: String, args: Vec<Value>) -> Option<Value> {
     let keys = args
         .iter()
         .map(|arg| unpack_bulk_str(arg.clone()).unwrap())

@@ -1,7 +1,7 @@
 use crate::{log, models::value::Value, server::Server};
 use regex::Regex;
 
-pub fn keys_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+pub fn keys_handler(server: &mut Server, _: String, args: Vec<Value>) -> Option<Value> {
     log!("keys_handler handler {:?}", args);
 
     let pattern = match args.get(0) {

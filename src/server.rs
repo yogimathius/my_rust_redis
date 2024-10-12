@@ -116,6 +116,7 @@ impl Server {
                             let server_clone = self.clone();
                             tokio::spawn(async move {
                                 let mut handler = RespHandler::new(stream);
+                                log!("Handling client");
                                 match handler.handle_client(server_clone).await {
                                     Ok(_) => log!("Client disconnected gracefully"),
                                     Err(e) => log!("Client disconnected with error: {}", e),

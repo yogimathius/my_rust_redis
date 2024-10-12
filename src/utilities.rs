@@ -41,6 +41,15 @@ lazy_static! {
     };
 }
 
+lazy_static! {
+    static ref NO_KEY_COMMANDS: HashSet<&'static str> = {
+        let mut m = HashSet::new();
+        m.insert("UNLINK");
+        m.insert("DEL");
+        m
+    };
+}
+
 pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
     match value {
         Value::Array(a) => {
@@ -48,6 +57,10 @@ pub fn extract_command(value: Value) -> Result<(String, String, Vec<Value>)> {
             let mut iter = a.into_iter();
             if NO_ARG_COMMANDS.contains(command.as_str()) {
                 return Ok((command, "".to_string(), vec![]));
+            }
+            if NO_KEY_COMMANDS.contains(command.as_str()) {
+                iter.next();
+                return Ok((command, "".to_string(), iter.collect()));
             }
             iter.next();
             let key = unpack_bulk_str(iter.next().ok_or_else(|| anyhow::anyhow!("Missing key"))?)?;

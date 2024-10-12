@@ -1,7 +1,7 @@
 use crate::{log, models::value::Value, server::Server};
 use std::{sync::Arc, thread};
 
-pub fn unlink_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
+pub fn unlink_handler(server: &mut Server, _: String, args: Vec<Value>) -> Option<Value> {
     let keys: Vec<String> = args
         .into_iter()
         .filter_map(|arg| match arg {
@@ -15,7 +15,11 @@ pub fn unlink_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Op
         log!("keys {:?}", keys);
 
         for key in keys {
-            cache.remove(&key);
+            if cache.remove(&key).is_some() {
+                log!("removed key {}", key);
+            } else {
+                log!("key {} not found", key);
+            }
         }
     });
     Some(Value::SimpleString("OK".to_string()))
