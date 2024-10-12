@@ -81,6 +81,8 @@ lazy_static! {
 
         // Returns the specified elements of the list stored at key.
         handlers.insert("LSET", Box::new(lset_handler));
+        handlers.insert("LPUSH", Box::new(lpush_handler));
+        handlers.insert("RPUSH", Box::new(rpush_handler));
 
 
         // Hash commands
