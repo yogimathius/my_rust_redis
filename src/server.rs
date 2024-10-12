@@ -1,12 +1,11 @@
 use crate::database::Database;
 use crate::log;
 use crate::models::args::Args;
-use crate::models::redis_type::RedisType;
+use crate::models::redis_item::RedisItem;
 use crate::models::value::Value;
 use crate::replica::ReplicaClient;
 use crate::resp::RespHandler;
 use crate::utilities::ServerState;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
@@ -16,14 +15,6 @@ use tokio::time::{interval, sleep, Duration};
 pub enum Role {
     Main,
     Slave { host: String, port: u16 },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RedisItem {
-    pub value: Value,
-    pub created_at: i64,
-    pub expiration: Option<i64>,
-    pub redis_type: RedisType,
 }
 
 #[derive(Clone, Debug)]

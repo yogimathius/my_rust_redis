@@ -3,7 +3,7 @@ mod tests {
     use redis_starter_rust::handlers::lset_handler;
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
-    use redis_starter_rust::server::{RedisItem, Server};
+    use redis_starter_rust::{models::redis_item::RedisItem, server::Server};
     use std::time::Instant;
 
     use crate::setup::setup_server;

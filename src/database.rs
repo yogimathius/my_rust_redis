@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 use crate::log;
-use crate::server::RedisItem;
+use crate::models::redis_item::RedisItem;
 
 #[derive(Clone)]
 pub struct Database {

@@ -1,16 +1,14 @@
 use lazy_static::lazy_static;
 
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
 use std::fmt::Arguments;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use bytes::BytesMut;
 
-use crate::models::redis_type::RedisType;
+use crate::models::redis_item::RedisItem;
 use crate::models::value::Value;
-use crate::server::RedisItem;
 #[derive(Debug, Clone, PartialEq)]
 pub enum ServerState {
     Initialising,
@@ -171,34 +169,6 @@ fn parse_integer(buffer: BytesMut) -> Result<(Value, usize)> {
     }
 }
 
-// pub fn get_expiration(args: Vec<Value>) -> Result<Option<i64>, String> {
-//     match args.get(2) {
-//         Some(Value::BulkString(sub_command)) => {
-//             if sub_command != "px" {
-//                 panic!("Invalid expiration time")
-//             }
-//             match args.get(3) {
-//                 None => Ok(None),
-//                 Some(Value::Integer(time)) => {
-//                     let time = time.parse::<i64>().unwrap();
-//                     Ok(Some(time))
-//                 }
-//                 _ => Err("Invalid expiration time".to_string()),
-//             }
-//         }
-//         None => Ok(None),
-//         _ => Err("Invalid expiration time".to_string()),
-//     }
-// }
-
-/**
-NX -- Set expiry only when the key has no expiry
-XX -- Set expiry only when the key has an existing expiry
-GT -- Set expiry only when the new expiry is greater than current one
-LT -- Set expiry only when the new expiry is less than current one
- */
-// helper function
-
 pub fn should_set_expiry(item: &RedisItem, expiration: i64, option: String) -> bool {
     log!("item {:?}", item);
     log!("expiration {:?}", expiration);
@@ -251,124 +221,5 @@ where
     match cache.get_mut(key) {
         Some(item) => Ok(callback(item)),
         None => Err(Value::Error("ERR no such key".to_string())),
-    }
-}
-
-pub fn read_length_encoding(buffer: &[u8], index: usize) -> Result<(u64, usize), Box<dyn Error>> {
-    if index >= buffer.len() {
-        return Err("Index out of bounds while reading length encoding".into());
-    }
-    let first_byte = buffer[index];
-    let prefix = first_byte >> 6;
-    match prefix {
-        0b00 => {
-            let length = (first_byte & 0x3F) as u64;
-            Ok((length, index + 1))
-        }
-        0b01 => {
-            if index + 2 > buffer.len() {
-                return Err("Insufficient bytes for 2-byte length encoding".into());
-            }
-            let length = (((first_byte & 0x3F) as u64) << 8) | (buffer[index + 1] as u64);
-            Ok((length, index + 2))
-        }
-        0b10 => {
-            if index + 5 > buffer.len() {
-                return Err("Insufficient bytes for 5-byte length encoding".into());
-            }
-            let length = u32::from_be_bytes([
-                buffer[index + 1],
-                buffer[index + 2],
-                buffer[index + 3],
-                buffer[index + 4],
-            ]) as u64;
-            Ok((length, index + 5))
-        }
-        _ => {
-            // Handle special encoding (11)
-            // For simplicity, skip implementation here
-            Err("Special length encoding not implemented".into())
-        }
-    }
-}
-
-pub fn read_expiry(buffer: &[u8], index: usize) -> Result<(Option<i64>, usize), Box<dyn Error>> {
-    if index >= buffer.len() {
-        return Err("Index out of bounds while reading expiry".into());
-    }
-    let opcode = buffer[index];
-    match opcode {
-        0xFD => {
-            if index + 5 > buffer.len() {
-                return Err("Insufficient bytes for EXPIRETIME".into());
-            }
-            let expiry = u32::from_be_bytes([
-                buffer[index + 1],
-                buffer[index + 2],
-                buffer[index + 3],
-                buffer[index + 4],
-            ]) as i64;
-            Ok((Some(expiry), index + 5))
-        }
-        0xFC => {
-            if index + 9 > buffer.len() {
-                return Err("Insufficient bytes for EXPIRETIMEMS".into());
-            }
-            let expiry = u64::from_be_bytes([
-                buffer[index + 1],
-                buffer[index + 2],
-                buffer[index + 3],
-                buffer[index + 4],
-                buffer[index + 5],
-                buffer[index + 6],
-                buffer[index + 7],
-                buffer[index + 8],
-            ]) as i64;
-            Ok((Some(expiry), index + 9))
-        }
-        _ => Ok((None, index)),
-    }
-}
-
-pub fn read_byte(buffer: &[u8], index: usize) -> Result<(u8, usize), Box<dyn Error>> {
-    if index >= buffer.len() {
-        return Err("Index out of bounds while reading a byte".into());
-    }
-    Ok((buffer[index], index + 1))
-}
-
-pub fn read_string(buffer: &[u8], index: usize) -> Result<(String, usize), Box<dyn Error>> {
-    let (length, new_index) = read_length_encoding(buffer, index)?;
-    if new_index + (length as usize) > buffer.len() {
-        return Err("String length exceeds buffer size".into());
-    }
-    let s = String::from_utf8_lossy(&buffer[new_index..new_index + (length as usize)]).to_string();
-    Ok((s, new_index + (length as usize)))
-}
-
-pub fn read_encoded_value(
-    buffer: &[u8],
-    index: usize,
-    value_type: u8,
-) -> Result<(Value, usize), Box<dyn Error>> {
-    match value_type {
-        0 => {
-            // String Encoding
-            let (s, new_index) = read_string(buffer, index)?;
-            Ok((Value::BulkString(s), new_index))
-        }
-        // Implement other value types based on your needs
-        _ => Err(format!("Unsupported value type: {}", value_type).into()),
-    }
-}
-
-pub fn infer_redis_type(value_type: u8) -> RedisType {
-    match value_type {
-        0 => RedisType::String,
-        1 => RedisType::List,
-        2 => RedisType::Set,
-        3 => RedisType::ZSet,
-        4 => RedisType::Hash,
-        _ => RedisType::None,
     }
 }

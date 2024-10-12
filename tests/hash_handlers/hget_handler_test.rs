@@ -47,7 +47,7 @@ mod tests {
             let mut cache = server.cache.lock().unwrap();
             cache.insert(
                 "key".to_string(),
-                redis_starter_rust::server::RedisItem {
+                redis_starter_rust::my_redis_server::redis_item::RedisItem {
                     value: Value::BulkString("some string".to_string()),
                     created_at: Instant::now().elapsed().as_secs() as i64,
                     expiration: None,

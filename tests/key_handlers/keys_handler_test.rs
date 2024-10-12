@@ -1,7 +1,7 @@
 use redis_starter_rust::handlers::keys_handler;
 use redis_starter_rust::models::redis_type::RedisType;
-use redis_starter_rust::models::value::Value;
-use redis_starter_rust::server::{RedisItem, Role, Server};
+use redis_starter_rust::models::{redis_item::RedisItem, value::Value};
+use redis_starter_rust::server::{Role, Server};
 use redis_starter_rust::utilities::ServerState;
 
 use std::collections::HashMap;
