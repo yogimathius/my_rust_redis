@@ -109,20 +109,36 @@ impl Server {
         });
 
         loop {
-            let stream = listener.accept().await;
-            let server: Server = self.clone();
-            match stream {
-                Ok((stream, _)) => {
-                    tokio::spawn(async move {
-                        let mut handler = RespHandler::new(stream);
-                        match handler.handle_client(server).await {
-                            Ok(_) => log!("Client disconnected gracefully"),
-                            Err(e) => log!("Client disconnected with error: {}", e),
+            tokio::select! {
+                accept_result = listener.accept() => {
+                    match accept_result {
+                        Ok((stream, _)) => {
+                            let server_clone = self.clone();
+                            tokio::spawn(async move {
+                                let mut handler = RespHandler::new(stream);
+                                match handler.handle_client(server_clone).await {
+                                    Ok(_) => log!("Client disconnected gracefully"),
+                                    Err(e) => log!("Client disconnected with error: {}", e),
+                                }
+                            });
+                        },
+                        Err(e) => {
+                            log!("Error accepting connection: {}", e);
                         }
-                    });
+                    }
                 }
-                Err(e) => {
-                    log!("Error accepting connection: {}", e);
+
+                _ = tokio::signal::ctrl_c() => {
+                    println!("Received Ctrl+C, initiating graceful shutdown...");
+
+                    if let Err(e) = db.dump_backup() {
+                        eprintln!("Failed to dump backup on shutdown: {}", e);
+                    } else {
+                        println!("Backup dumped successfully on shutdown.");
+                    }
+
+                    println!("Server is shutting down gracefully.");
+                    break;
                 }
             }
         }
