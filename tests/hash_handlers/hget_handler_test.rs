@@ -30,7 +30,7 @@ mod tests {
         let mut server = setup();
         let args = vec![Value::BulkString("field".to_string())];
         let result = hget_handler(&mut server, "non_existent_key".to_string(), args);
-        assert_eq!(result, None);
+        assert_eq!(result, Some(Value::NullBulkString));
     }
 
     #[test]
@@ -76,7 +76,7 @@ mod tests {
         hset_handler(&mut server, "key".to_string(), args);
         let args = vec![Value::BulkString("non_existent_field".to_string())];
         let result = hget_handler(&mut server, "key".to_string(), args);
-        assert_eq!(result, None);
+        assert_eq!(result, Some(Value::NullBulkString));
     }
 
     #[test]
