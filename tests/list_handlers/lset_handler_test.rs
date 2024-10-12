@@ -33,7 +33,6 @@ mod tests {
 
         // Test setting a value in the list
         let args = vec![
-            Value::BulkString(key.clone()),
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
@@ -71,7 +70,6 @@ mod tests {
 
         // Test setting a value with an out-of-range index
         let args = vec![
-            Value::BulkString(key.clone()),
             Value::Integer(10),
             Value::BulkString("new_value".to_string()),
         ];
@@ -88,7 +86,6 @@ mod tests {
 
         // Test setting a value in a non-existent list
         let args = vec![
-            Value::BulkString("non_existent_key".to_string()),
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];
@@ -112,7 +109,6 @@ mod tests {
 
         // Test setting a value in a non-list key
         let args = vec![
-            Value::BulkString(key.clone()),
             Value::Integer(1),
             Value::BulkString("new_value".to_string()),
         ];

@@ -28,8 +28,8 @@ mod tests {
             Value::BulkString("key1".to_string()),
             Value::BulkString("key2".to_string()),
         ];
-        let result = unlink_handler(&mut server, "key".to_string(), args);
-        assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
+        let result = unlink_handler(&mut server, "".to_string(), args);
+        assert_eq!(result, Some(Value::Integer(2)));
 
         std::thread::sleep(std::time::Duration::from_millis(100));
 
