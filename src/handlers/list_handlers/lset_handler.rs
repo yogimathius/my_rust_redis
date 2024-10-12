@@ -9,12 +9,12 @@ use crate::{
 pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!("lset_handler: {:?}", key);
     log!("lset_handler: {:?}", args);
-    let index = match args.get(1) {
+    let index = match args.get(0) {
         Some(Value::Integer(i)) => *i as usize,
         _ => return Some(Value::Error("ERR index is not an integer".to_string())),
     };
 
-    let new_value = match args.get(2) {
+    let new_value = match args.get(1) {
         Some(v) => v.clone(),
         _ => {
             return Some(Value::Error(
