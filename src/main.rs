@@ -1,9 +1,9 @@
-use clap::Parser;
 use redis_starter_rust::{models::args::Args, server::Server};
+use structopt::StructOpt;
 
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let args = Args::from_args();
 
     let mut server = Server::new(args.clone());
 
