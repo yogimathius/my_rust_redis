@@ -43,7 +43,7 @@ mod tests {
         let mut server = setup();
         let args = vec![Value::BulkString("field".to_string())];
         let result = hexists_handler(&mut server, "non_existent_key".to_string(), args);
-        assert_eq!(result, None);
+        assert_eq!(result, Some(Value::Integer(0)));
     }
 
     #[test]
