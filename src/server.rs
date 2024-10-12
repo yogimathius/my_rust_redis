@@ -90,7 +90,7 @@ impl Server {
         let db = Database::new(self.cache.clone(), "dump.rdb");
 
         if let Err(e) = db.read_backup() {
-            eprintln!("Failed to load backup: {}", e);
+            log!("Failed to load backup: {}", e);
         }
 
         let db_clone = db.clone();
@@ -101,9 +101,9 @@ impl Server {
             loop {
                 interval_timer.tick().await;
                 if let Err(e) = db_clone.dump_backup() {
-                    eprintln!("Failed to dump backup: {}", e);
+                    log!("Failed to dump backup: {}", e);
                 } else {
-                    println!("Backup dumped successfully.");
+                    log!("Backup dumped successfully.");
                 }
             }
         });
@@ -130,15 +130,15 @@ impl Server {
                 }
 
                 _ = tokio::signal::ctrl_c() => {
-                    println!("Received Ctrl+C, initiating graceful shutdown...");
+                    log!("Received Ctrl+C, initiating graceful shutdown...");
 
                     if let Err(e) = db.dump_backup() {
-                        eprintln!("Failed to dump backup on shutdown: {}", e);
+                        log!("Failed to dump backup on shutdown: {}", e);
                     } else {
-                        println!("Backup dumped successfully on shutdown.");
+                        log!("Backup dumped successfully on shutdown.");
                     }
 
-                    println!("Server is shutting down gracefully.");
+                    log!("Server is shutting down gracefully.");
                     break;
                 }
             }

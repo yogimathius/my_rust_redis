@@ -6,6 +6,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
+use crate::log;
 use crate::server::RedisItem;
 
 #[derive(Clone)]
@@ -56,7 +57,7 @@ impl Database {
     pub fn read_backup(&self) -> Result<(), DatabaseError> {
         let path = Path::new(&self.path);
         if !path.exists() {
-            println!("Backup file does not exist. Starting with an empty cache.");
+            log!("Backup file does not exist. Starting with an empty cache.");
             return Ok(());
         }
 
@@ -70,7 +71,7 @@ impl Database {
         let mut cache = self.cache.lock().unwrap();
         *cache = deserialized;
 
-        println!("Backup loaded successfully.");
+        log!("Backup loaded successfully.");
         Ok(())
     }
 }

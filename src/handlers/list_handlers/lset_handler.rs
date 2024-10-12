@@ -1,4 +1,5 @@
 use crate::{
+    log,
     models::{redis_type::RedisType, value::Value},
     server::Server,
     utilities::lock_and_get_item,
@@ -6,6 +7,8 @@ use crate::{
 
 // TODO: handle creating a new key if key isn't found
 pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
+    log!("lset_handler: {:?}", key);
+    log!("lset_handler: {:?}", args);
     let index = match args.get(1) {
         Some(Value::Integer(i)) => *i as usize,
         _ => return Some(Value::Error("ERR index is not an integer".to_string())),
