@@ -4,16 +4,7 @@ use crate::{
     utilities::lock_and_get_item,
 };
 
-pub fn llen_handler(server: &mut Server, _key: String, args: Vec<Value>) -> Option<Value> {
-    let key = match args.get(0) {
-        Some(Value::BulkString(s)) => s.clone(),
-        _ => {
-            return Some(Value::Error(
-                "ERR wrong number of arguments for 'lset' command".to_string(),
-            ))
-        }
-    };
-
+pub fn llen_handler(server: &mut Server, key: String, _: Vec<Value>) -> Option<Value> {
     match lock_and_get_item(&server.cache, &key, |item| {
         if let RedisType::List = item.redis_type {
             if let Value::Array(ref list) = item.value {
