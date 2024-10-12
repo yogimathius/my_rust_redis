@@ -25,50 +25,64 @@ impl RespHandler {
 
     pub async fn handle_client(&mut self, mut server: Server) -> Result<()> {
         loop {
-            let value: Option<Value> = self.read_value().await?;
-
-            let response: Option<Value> = if let Some(value) = value {
-                let (command, key, args) = extract_command(value).unwrap();
-                if command == "FULLRESYNC" {
-                    server.sync = true;
-                    Some(Value::SimpleString("OK".to_string()))
-                } else if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
-                    log!("command: {}", command);
-                    command_function(&mut server, key, args)
-                } else {
-                    Value::SimpleString("Unknown command".to_string());
-                    std::process::exit(1);
+            if let Some(value) = self.read_value().await? {
+                let response = self.process_command(value, &mut server)?;
+                if let Some(response) = response {
+                    log!("response: {:?}", response);
+                    self.write_value(response).await?;
                 }
-            } else {
-                None
-            };
-            if let Some(response) = response {
-                log!("response: {:?}", response);
-                self.write_value(response).await.unwrap();
             }
-            if server.sync {
-                log!("server synced");
 
-                let mut rdb_buf: Vec<u8> = vec![];
-                let _ = File::open("rdb")
-                    .await
-                    .unwrap()
-                    .read_to_end(&mut rdb_buf)
-                    .await;
-                log!("Read {} bytes from dump.rdb", rdb_buf.len());
-                let contents = hex::decode(&rdb_buf).unwrap();
-                let header = format!("${}\r\n", contents.len());
-                self.stream.write_all(header.as_bytes()).await?;
-                self.stream.write_all(&contents).await?;
-                // write replconf getack
-                let replconf =
-                    server.generate_replconf("REPLCONF", vec![("GETACK", "1".to_string())]);
-                self.stream
-                    .write_all(replconf.unwrap().serialize().as_bytes())
-                    .await?;
-                server.sync = false;
+            if server.sync {
+                self.handle_sync(&mut server).await?;
             }
         }
+    }
+
+    fn process_command(&self, value: Value, server: &mut Server) -> Result<Option<Value>> {
+        match value {
+            Value::Error(err) => Ok(Some(Value::Error(err))),
+            _ => self.execute_command(value, server),
+        }
+    }
+
+    fn execute_command(&self, value: Value, server: &mut Server) -> Result<Option<Value>> {
+        match extract_command(value) {
+            Ok((command, key, args)) => {
+                if command == "FULLRESYNC" {
+                    server.sync = true;
+                    Ok(Some(Value::SimpleString("OK".to_string())))
+                } else if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+                    log!("command: {}", command);
+                    Ok(command_function(server, key, args))
+                } else {
+                    Ok(Some(Value::Error("Unknown command".to_string())))
+                }
+            }
+            Err(e) => Ok(Some(Value::Error(e.to_string()))),
+        }
+    }
+
+    async fn handle_sync(&mut self, server: &mut Server) -> Result<()> {
+        log!("server synced");
+
+        let mut rdb_buf: Vec<u8> = vec![];
+        let _ = File::open("rdb").await?.read_to_end(&mut rdb_buf).await?;
+        log!("Read {} bytes from dump.rdb", rdb_buf.len());
+        let contents = hex::decode(&rdb_buf)?;
+        let header = format!("${}\r\n", contents.len());
+        self.stream.write_all(header.as_bytes()).await?;
+        self.stream.write_all(&contents).await?;
+
+        let replconf = server
+            .generate_replconf("REPLCONF", vec![("GETACK", "1".to_string())])
+            .unwrap();
+        self.stream
+            .write_all(replconf.serialize().as_bytes())
+            .await?;
+        server.sync = false;
+
+        Ok(())
     }
 
     pub async fn read_value(&mut self) -> Result<Option<Value>> {
@@ -78,9 +92,10 @@ impl RespHandler {
             return Ok(None);
         }
 
-        let (v, _) = parse_message(self.buffer.split())?;
-
-        Ok(Some(v))
+        match parse_message(self.buffer.split()) {
+            Ok((v, _)) => Ok(Some(v)),
+            Err(e) => Ok(Some(Value::Error(e.to_string()))),
+        }
     }
 
     pub async fn write_value(&mut self, value: Value) -> Result<()> {

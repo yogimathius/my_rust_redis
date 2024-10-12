@@ -87,6 +87,7 @@ pub fn unpack_integer(value: Value) -> Result<i64> {
 }
 
 pub fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
+    log!("Parsing message: {:?}", buffer);
     match buffer[0] as char {
         '+' => parse_simple_string(buffer),
         '*' => parse_array(buffer),
