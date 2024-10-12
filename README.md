@@ -1,157 +1,108 @@
 # my_redis_server
 
-## NAME
+## Description
 
-**my_redis_server**  
---port PORT (Default port: 6379)
+`my_redis_server` is a Redis-compatible server implementation written in Rust. It provides a data structure server that handles data sent via TCP sockets using the Redis protocol. This server is designed to work with the `my_redis_client` for communication.
 
----
+## Features
 
-## Prologue
+This server implements a wide range of Redis commands across various data types:
 
-Redis’s exceptional performance, simplicity, and atomic manipulation of data structures lends itself to solving problems that are difficult or perform poorly when implemented with traditional relational databases. Below are some example use cases:
+### Common Commands
 
-### COMMON USE CASES
+- [x] `ECHO` – Echo the given string
+- [x] `PING` – Test if server is responsive
+- [x] `FLUSHALL` – Remove all keys from all databases
 
-- **Caching**: Redis is widely used for caching due to its performance and ability to persist data to disk. It is a superior alternative to memcached for caching scenarios with a high volume of read and write operations.
-- **Publish and Subscribe**: Since version 2.0, Redis has supported the Publish/Subscribe messaging paradigm, which some organizations use as a simpler and faster alternative to traditional message queuing systems like zeromq and RabbitMQ.
+### Key/Value Commands
 
-- **Queues**: Redis is used in projects such as Resque for queueing background jobs.
+- [x] `SET` – Set key to hold the string value
+- [x] `GET` – Get the value of key
+- [x] `KEYS` – Find all keys matching the specified pattern
+- [x] `TYPE` – Determine the type stored at key
+- [x] `DEL` – Delete a key
+- [x] `UNLINK` – Remove a key asynchronously in another thread
+- [x] `EXPIRE` – Set a key's time to live in seconds
+- [x] `RENAME` – Rename a key
 
-- **Counters**: Atomic commands such as `HINCRBY` allow for simple and thread-safe counters without needing to read data before incrementing or updating database schemas.
+### List Commands
 
----
+- [x] `LLEN` – Get the length of a list
+- [x] `LREM` – Remove elements from a list
+- [x] `LINDEX` – Get an element from a list by its index
+- [x] `LPOP/RPOP` – Remove and get the first/last element in a list
+- [x] `LPUSH/RPUSH` – Prepend/Append one or multiple elements to a list
+- [x] `LSET` – Set the value of an element in a list by its index
 
-## DESCRIPTION
+### Hash Commands
 
-You are tasked with building **my_redis_server**, a data structure server that provides access to data sent via TCP sockets using the Redis protocol. You should use the previously implemented **my_redis_client** to communicate with **my_redis_server**.
+- [x] `HGET` – Get the value of a hash field
+- [x] `HEXISTS` – Determine if a hash field exists
+- [x] `HDEL` – Delete one or more hash fields
+- [x] `HGETALL` – Get all the fields and values in a hash
+- [x] `HKEYS` – Get all the fields in a hash
+- [x] `HLEN` – Get the number of fields in a hash
+- [x] `HMSET` – Set multiple hash fields to multiple values
+- [x] `HSET` – Set the string value of a hash field
+- [x] `HVALS` – Get all the values in a hash
 
-Redis supports two primary data types:
+## Requirements
 
-**Lists**
+- [x] Rust (latest stable version)
+- [x] Tokio
+- [x] Bytes
+- [x] Structopt
+
+## Installation
+
+To install and run `my_redis_server` locally, ensure you have Rust installed. Then clone the repository and build the project:
 
 ```bash
-$> ./my_redis_server &
-$> ./my_redis_client
-127.0.0.1:6379> LPUSH my_list 1
-(integer) 1
-127.0.0.1:6379> LPUSH my_list 2
-(integer) 2
-127.0.0.1:6379> SET "hello" "world"
-OK
-127.0.0.1:6379> GET "hello"
-"world"
+git clone https://your-repository-url/my_redis_server.git
+cd my_redis_server
+cargo build --release
 ```
 
-**Hashes (k/v)**
+## Usage
+
+To start the server, use the following command:
 
 ```bash
-$>./my_redis_server &
-$>./my_redis_client
-127.0.0.1:6379>set "hello" "world"
-OK
-127.0.0.1:6379>get "hello"
-"world"
-127.0.0.1:6379>
+cargo run --bin my_redis_server [--port PORT]
 ```
 
-## Commands
+The default port is 6379 if not specified.
 
-In order to mirror your my_redis_client, we will implement the followings commands:
+## Architecture
 
-### Common
+### Atomic Operations
 
-- echo
-- ping
-- flushall
+The server ensures that multiple clients can modify the same data simultaneously without conflicts.
 
-### Key/Value
+### Persistence
 
-- set
-- get
-- keys
-- type
-- del
-- unlink
-- expire
-- rename
+The server automatically saves its database every 300 seconds into a file named `dump.rdb` in the current directory. Backups are performed as a background task.
 
-### Lists
+### Shutdown
 
-- llen
-- lrem
-- lindex
-- lpop/rpop
-- lpush/rpush
-- lset
+The server catches the Ctrl+C signal to shut down correctly, saving the database before exiting.
 
-### Hashes
+### Data Storage
 
-- hget
-- hexists
-- hdel
-- hgetall
-- hkeys
-- hlen
-- hmset
-- hset
-- hvals
+The server uses a custom data structure based on HashMaps for efficient data storage and retrieval.
 
-### Encryption
+### Connections
 
-my_redis_server should use a plain TCP connection.
-
-### Connection
-
-my_redis_server must simultaneously accept multiple connections.
-
-## Persistence/backup
-
-my_redis_server will save its database every 300 seconds into a file. This file will be located in the current directory and it will be named: dump.my_rdb.
-
-RDB format is a binary representation of the memory in a redis-server. You can decide to follow its implementation or implement your own backup format.
-
-Backups must happen as a background task.
-
-Db
-my_redis_server must provide 1 database.
-
-## Recommended libraries
-
-- atoi
-- Tokio
-- Bytes
-- structopt
-  !! redis-rs is obviously not authorized. You can`t use this library.
-
-## Technical description
-
-You will provide a Cargo-compatible project. Consider the following 7 items:
-
-### Atomic
-
-Multiple clients can modify the same data at the same time. You will have to make sure this works.
-
-### Shutdown correctly
-
-Signal ctrl_c must be caught in order to correctly shutdown the server. Before shutting down, you will save into the dump.my_rdb file.
-
-### Data storage
-
-A custom data structure would be preferable but you can use vec and hashmap for data storage.
-
-### Arguments
-
-Use structopt
-
-### Sockets
-
-Use tokio TcpListener
+The server uses Tokio's TcpListener to handle multiple client connections simultaneously.
 
 ### Protocol
 
-The Redis wire protocol documentation can be found here. Its implementation should be simple.
+The server implements the Redis wire protocol for communication with clients.
 
-### Design/Architecture
+## Command Reference
 
-You should reuse your protocols and connections structs from my_redis_client. At that moment, you will either proud of your previous implementation or it will be time to refactor it.
+For more information on Redis commands, refer to the [Redis Command Reference](https://redis.io/commands).
+
+## Author
+
+Mathius Johnson
