@@ -33,6 +33,7 @@ impl RespHandler {
                     server.sync = true;
                     Some(Value::SimpleString("OK".to_string()))
                 } else if let Some(command_function) = COMMAND_HANDLERS.get(command.as_str()) {
+                    log!("command: {}", command);
                     command_function(&mut server, key, args)
                 } else {
                     Value::SimpleString("Unknown command".to_string());
@@ -42,6 +43,7 @@ impl RespHandler {
                 None
             };
             if let Some(response) = response {
+                log!("response: {:?}", response);
                 self.write_value(response).await.unwrap();
             }
             if server.sync {

@@ -1,5 +1,4 @@
 use crate::{log, models::value::Value, server::Server};
-use std::{sync::Arc, thread};
 
 pub fn unlink_handler(server: &mut Server, _: String, args: Vec<Value>) -> Option<Value> {
     let keys: Vec<String> = args
@@ -9,18 +8,21 @@ pub fn unlink_handler(server: &mut Server, _: String, args: Vec<Value>) -> Optio
             _ => None,
         })
         .collect();
-    let cache = Arc::clone(&server.cache);
-    thread::spawn(move || {
-        let mut cache = cache.lock().unwrap();
-        log!("keys {:?}", keys);
 
+    log!("keys {:?}", keys);
+
+    let mut removed_count = 0;
+    {
+        let mut cache = server.cache.lock().unwrap();
         for key in keys {
             if cache.remove(&key).is_some() {
                 log!("removed key {}", key);
+                removed_count += 1;
             } else {
                 log!("key {} not found", key);
             }
         }
-    });
-    Some(Value::SimpleString("OK".to_string()))
+    }
+
+    Some(Value::Integer(removed_count))
 }
