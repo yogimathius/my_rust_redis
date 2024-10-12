@@ -46,6 +46,7 @@ lazy_static! {
         let mut m = HashSet::new();
         m.insert("UNLINK");
         m.insert("DEL");
+        m.insert("KEYS");
         m
     };
 }
