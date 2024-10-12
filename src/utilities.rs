@@ -92,6 +92,7 @@ pub fn parse_message(buffer: BytesMut) -> Result<(Value, usize)> {
         '+' => parse_simple_string(buffer),
         '*' => parse_array(buffer),
         '$' => parse_bulk_string(buffer),
+        ':' => parse_integer(buffer),
         _ => Err(anyhow::anyhow!("Unknown value type {:?}", buffer)),
     }
 }
@@ -159,6 +160,15 @@ fn read_until_crlf(buffer: &[u8]) -> Option<(&[u8], usize)> {
 
 fn parse_int(buffer: &[u8]) -> Result<i64> {
     Ok(String::from_utf8(buffer.to_vec())?.parse::<i64>()?)
+}
+
+fn parse_integer(buffer: BytesMut) -> Result<(Value, usize)> {
+    if let Some((line, len)) = read_until_crlf(&buffer[1..]) {
+        let integer = parse_int(line)?;
+        Ok((Value::Integer(integer), len + 1))
+    } else {
+        Err(anyhow::anyhow!("Invalid integer format {:?}", buffer))
+    }
 }
 
 // pub fn get_expiration(args: Vec<Value>) -> Result<Option<i64>, String> {

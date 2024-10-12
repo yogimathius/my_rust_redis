@@ -26,6 +26,7 @@ impl RespHandler {
     pub async fn handle_client(&mut self, mut server: Server) -> Result<()> {
         loop {
             if let Some(value) = self.read_value().await? {
+                log!("value: {:?}", value);
                 let response = self.process_command(value, &mut server)?;
                 if let Some(response) = response {
                     log!("response: {:?}", response);
