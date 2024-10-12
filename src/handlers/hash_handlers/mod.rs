@@ -1,3 +1,4 @@
+pub mod hash_utils;
 pub mod hdel_handler;
 pub mod hexists_handler;
 pub mod hget_handler;
