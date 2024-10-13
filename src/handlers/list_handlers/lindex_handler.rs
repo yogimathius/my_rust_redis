@@ -1,4 +1,5 @@
-use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
+use super::list_utils::ListOperation;
+use crate::{log, models::value::Value, server::Server};
 
 pub fn lindex_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!(
@@ -12,25 +13,14 @@ pub fn lindex_handler(server: &mut Server, key: String, args: Vec<Value>) -> Opt
         _ => return Some(Value::Error("ERR value is not an integer".to_string())),
     };
 
-    match lock_and_get_item(&server.cache, &key, |item| {
-        if let Value::Array(ref list) = item.value {
-            if index < 0 {
-                let index = list.len() as i64 + index;
-                if index < 0 {
-                    return Some(Value::NullBulkString);
-                }
-                return Some(list[index as usize].clone());
-            }
-            if index as usize >= list.len() {
-                return Some(Value::NullBulkString);
-            }
-            return Some(list[index as usize].clone());
+    server.operate_on_list(&key, |list| {
+        let len = list.len() as i64;
+        let adjusted_index = if index < 0 { len + index } else { index };
+
+        if adjusted_index < 0 || adjusted_index >= len {
+            Some(Value::NullBulkString)
+        } else {
+            Some(list[adjusted_index as usize].clone())
         }
-        Some(Value::Error(
-            "ERR operation against a key holding the wrong kind of value".to_string(),
-        ))
-    }) {
-        Ok(result) => result,
-        Err(err) => Some(err),
-    }
+    })
 }
