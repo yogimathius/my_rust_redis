@@ -1,5 +1,5 @@
 use crate::{
-    models::{redis_item::RedisItem, redis_type::RedisType, value::Value},
+    models::{redis_type::RedisType, value::Value},
     server::Server,
 };
 use std::collections::HashMap;
