@@ -58,12 +58,7 @@ pub fn hset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
                     count += 1;
                 }
             }
-            let redis_item = RedisItem {
-                value: Value::Hash(hash),
-                created_at: Instant::now().elapsed().as_secs() as i64,
-                expiration: None,
-                redis_type: RedisType::Hash,
-            };
+            let redis_item = RedisItem::new_hash(hash);
             cache.insert(key, redis_item);
             Some(Value::Integer(count))
         }
