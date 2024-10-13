@@ -1,4 +1,4 @@
-use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
+use crate::{handlers::list_utils::ListOperation, log, models::value::Value, server::Server};
 
 pub fn lrem_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!("lrem_handler called with key: {} and args: {:?}", key, args);
@@ -12,8 +12,8 @@ pub fn lrem_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
         _ => return Some(Value::Error("ERR value is not a bulk string".to_string())),
     };
 
-    match lock_and_get_item(&server.cache, &key, |item| {
-        if let Value::Array(ref mut list) = item.value {
+    server
+        .operate_on_list(&key, |list| {
             let mut removed = 0;
             log!("list before lrem: {:?}", list);
             list.retain(|list_item| {
@@ -30,13 +30,8 @@ pub fn lrem_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
             log!("count after lrem: {:?}", count);
             log!("removed after lrem: {:?}", removed);
             Some(Value::Integer(removed))
-        } else {
-            Some(Value::Error(
-                "ERR operation against a key holding the wrong kind of value".to_string(),
-            ))
-        }
-    }) {
-        Ok(result) => result,
-        Err(err) => Some(err),
-    }
+        })
+        .or(Some(Value::Error(
+            "ERR operation against a key holding the wrong kind of value".to_string(),
+        )))
 }
