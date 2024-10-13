@@ -4,6 +4,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use redis_starter_rust::handlers::rename_handler;
+    use redis_starter_rust::handlers::set_handler;
     use redis_starter_rust::models::redis_type::RedisType;
     use redis_starter_rust::models::value::Value;
     use redis_starter_rust::{models::redis_item::RedisItem, server::Server};
@@ -59,17 +60,13 @@ mod tests {
     #[test]
     fn test_rename_new_key_already_exists() {
         let mut server = setup();
-        let fixed_instant = Instant::now() - Duration::from_secs(1000);
-        server.cache.lock().unwrap().insert(
-            "new_key".to_string(),
-            RedisItem {
-                value: Value::BulkString("existing_value".to_string()),
-                created_at: fixed_instant.elapsed().as_secs() as i64,
-                expiration: None,
-                redis_type: RedisType::String,
-            },
-        );
-        let args = vec![bulk_string("old_key"), bulk_string("new_key")];
+
+        // Use set_handler to insert the new key
+        let set_args = vec![Value::BulkString("some string".to_string())];
+        set_handler(&mut server, "old_key".to_string(), set_args);
+        assert!(server.cache.lock().unwrap().contains_key("old_key"));
+
+        let args = vec![bulk_string("new_key")];
         let result = rename_handler(&mut server, "old_key".to_string(), args);
         assert_eq!(result, Some(Value::SimpleString("OK".to_string())));
 

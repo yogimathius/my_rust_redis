@@ -26,6 +26,9 @@ pub fn set_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option
         redis_type: RedisType::String,
     };
 
+    log!("key {:?}", key);
+    log!("item {:?}", item);
+
     cache.insert(key, item);
     log!("Ok");
     Some(Value::SimpleString("OK".to_string()))
