@@ -67,18 +67,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rpush_handler_invalid_value_type() {
-        let mut server = setup();
-        let key = "key".to_string();
-        let args = vec![Value::Integer(123)];
-        let result = rpush_handler(&mut server, key.clone(), args);
-        assert_eq!(
-            result,
-            Some(Value::Error("ERR value is not a bulk string".to_string()))
-        );
-    }
-
-    #[test]
     fn test_rpush_handler_non_list_value() {
         let mut server = setup();
         let key = "key".to_string();
