@@ -1,4 +1,5 @@
 pub mod lindex_handler;
+pub mod list_utils;
 pub mod llen_handler;
 pub mod lpop_handler;
 pub mod lpush_handler;
