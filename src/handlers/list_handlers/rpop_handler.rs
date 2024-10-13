@@ -1,21 +1,14 @@
+use super::list_utils::ListOperation;
 use crate::{models::value::Value, server::Server};
 
 pub fn rpop_handler(server: &mut Server, key: String, _args: Vec<Value>) -> Option<Value> {
-    let mut cache = server.cache.lock().unwrap();
-    match cache.get_mut(&key) {
-        Some(item) => {
-            if let Value::Array(ref mut list) = item.value {
-                if list.is_empty() {
-                    Some(Value::NullBulkString)
-                } else {
-                    Some(list.remove(list.len() - 1))
-                }
+    server
+        .operate_on_list(&key, |list| {
+            if list.is_empty() {
+                Some(Value::NullBulkString)
             } else {
-                Some(Value::Error(
-                    "ERR operation against a key holding the wrong kind of value".to_string(),
-                ))
+                Some(list.remove(list.len() - 1))
             }
-        }
-        None => Some(Value::NullBulkString),
-    }
+        })
+        .or(Some(Value::Error("ERR no such key".to_string())))
 }
