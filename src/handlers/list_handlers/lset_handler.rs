@@ -1,9 +1,5 @@
-use crate::{
-    log,
-    models::{redis_type::RedisType, value::Value},
-    server::Server,
-    utilities::lock_and_get_item,
-};
+use super::list_utils::ListOperation;
+use crate::{log, models::value::Value, server::Server};
 
 // TODO: handle creating a new key if key isn't found
 pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
@@ -23,22 +19,14 @@ pub fn lset_handler(server: &mut Server, key: String, args: Vec<Value>) -> Optio
         }
     };
 
-    match lock_and_get_item(&server.cache, &key, |item| {
-        if let RedisType::List = item.redis_type {
-            if let Value::Array(ref mut list) = item.value {
-                if index < list.len() {
-                    list[index] = new_value;
-                    return Some(Value::SimpleString("OK".to_string()));
-                } else {
-                    return Some(Value::Error("ERR index out of range".to_string()));
-                }
+    server
+        .operate_on_list(&key, |list| {
+            if index < list.len() {
+                list[index] = new_value;
+                Some(Value::SimpleString("OK".to_string()))
+            } else {
+                Some(Value::Error("ERR index out of range".to_string()))
             }
-        }
-        Some(Value::Error(
-            "ERR operation against a key holding the wrong kind of value".to_string(),
-        ))
-    }) {
-        Ok(result) => result,
-        Err(err) => Some(err),
-    }
+        })
+        .or(Some(Value::Error("ERR no such key".to_string())))
 }
