@@ -1,38 +1,41 @@
-use crate::{log, models::value::Value, server::Server, utilities::lock_and_get_item};
+use super::list_utils::ListOperation;
+use crate::{
+    log,
+    models::{redis_item::RedisItem, value::Value},
+    server::Server,
+};
 
 pub fn lpush_handler(server: &mut Server, key: String, args: Vec<Value>) -> Option<Value> {
     log!("LPUSH: Handling key '{}' with args: {:?}", key, args);
 
-    match lock_and_get_item(&server.cache, &key, |item| match &mut item.value {
-        Value::Array(list) => {
-            for arg in args.iter().rev() {
-                list.insert(0, arg.clone());
-            }
-            log!(
-                "LPUSH: Updated existing list for key '{}'. New length: {}",
-                key,
-                list.len()
-            );
-            Some(Value::Integer(list.len() as i64))
+    let result = server.operate_on_list(&key, |list| {
+        for arg in args.iter().rev() {
+            list.insert(0, arg.clone());
         }
-        _ => {
-            let new_list: Vec<Value> = args.into_iter().rev().collect();
-            item.value = Value::Array(new_list.clone());
-            log!(
-                "LPUSH: Created new list for key '{}'. Length: {}",
-                key,
-                new_list.len()
-            );
-            Some(Value::Integer(new_list.len() as i64))
-        }
-    }) {
-        Ok(result) => {
+        log!(
+            "LPUSH: Updated existing list for key '{}'. New length: {}",
+            key,
+            list.len()
+        );
+        Some(Value::Integer(list.len() as i64))
+    });
+
+    match result {
+        Some(value) => {
             log!("LPUSH: Operation successful for key '{}'", key);
-            result
+            Some(value)
         }
-        Err(err) => {
-            log!("LPUSH: Error for key '{}': {:?}", key, err);
-            Some(err)
+        None => {
+            // Key doesn't exist, create a new list
+            let new_list: Vec<Value> = args.into_iter().rev().collect();
+            let len = new_list.len();
+            server
+                .cache
+                .lock()
+                .unwrap()
+                .insert(key.clone(), RedisItem::new_list(new_list));
+            log!("LPUSH: Created new list for key '{}'. Length: {}", key, len);
+            Some(Value::Integer(len as i64))
         }
     }
 }

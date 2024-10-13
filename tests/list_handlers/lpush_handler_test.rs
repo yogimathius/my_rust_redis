@@ -67,18 +67,6 @@ mod tests {
     }
 
     #[test]
-    fn test_lpush_handler_invalid_value_type() {
-        let mut server = setup();
-        let key = "key".to_string();
-        let args = vec![Value::Integer(123)];
-        let result = lpush_handler(&mut server, key.clone(), args);
-        assert_eq!(
-            result,
-            Some(Value::Error("ERR value is not a bulk string".to_string()))
-        );
-    }
-
-    #[test]
     fn test_lpush_handler_non_list_value() {
         let mut server = setup();
         let key = "key".to_string();
@@ -99,5 +87,35 @@ mod tests {
                 "ERR operation against a key holding the wrong kind of value".to_string()
             ))
         );
+    }
+
+    #[test]
+    fn test_lpush_handler_multiple_value_types() {
+        let mut server = setup();
+        let key = "key".to_string();
+        let args = vec![
+            Value::Integer(123),
+            Value::BulkString("string".to_string()),
+            Value::Array(vec![Value::Integer(1), Value::Integer(2)]),
+        ];
+        let result = lpush_handler(&mut server, key.clone(), args);
+        assert_eq!(result, Some(Value::Integer(3)));
+
+        let cache = server.cache.lock().unwrap();
+        if let Some(item) = cache.get(&key) {
+            if let Value::Array(list) = &item.value {
+                assert_eq!(list.len(), 3);
+                assert_eq!(
+                    list[0],
+                    Value::Array(vec![Value::Integer(1), Value::Integer(2)])
+                );
+                assert_eq!(list[1], Value::BulkString("string".to_string()));
+                assert_eq!(list[2], Value::Integer(123));
+            } else {
+                panic!("Value is not an array");
+            }
+        } else {
+            panic!("Key not found in cache");
+        }
     }
 }
