@@ -35,14 +35,7 @@ impl HashOperation for Server {
                 }
             }
             Some(_) => wrong_type_error!(),
-            None => {
-                let mut hash = HashMap::new();
-                let result = f(&mut hash);
-                if !hash.is_empty() {
-                    cache.insert(key.to_string(), RedisItem::new_hash(hash));
-                }
-                result.into()
-            }
+            None => None,
         }
     }
 }
